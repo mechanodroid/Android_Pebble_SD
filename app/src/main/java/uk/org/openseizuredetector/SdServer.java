@@ -452,6 +452,7 @@ public class SdServer extends Service implements SdDataReceiver {
         if ((sdData.alarmState) == 4 || (sdData.alarmState == 7)) {
             sdData.alarmPhrase = "FAULT";
             faultWarningBeep();
+            writeAlarmToSD();
         } else {
             stopFaultTimer();
         }
@@ -466,6 +467,7 @@ public class SdServer extends Service implements SdDataReceiver {
         mSdData = sdData;
         mSdData.alarmState = 4;  // set fault alarm state.
         if (webServer != null) webServer.setSdData(mSdData);
+        writeAlarmToSD();
         if (mAudibleFaultWarning) {
             faultWarningBeep();
         }
@@ -721,7 +723,9 @@ public class SdServer extends Service implements SdDataReceiver {
      * Write data to SD card alarm log
      */
     public void writeAlarmToSD() {
-        writeToSD(true);
+        if (mLogAlarms) {
+            writeToSD(true);
+        }
     }
 
     /**
