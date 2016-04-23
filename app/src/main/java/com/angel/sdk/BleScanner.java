@@ -33,6 +33,7 @@ package com.angel.sdk;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 
@@ -62,19 +63,23 @@ public class BleScanner {
     /**
      * Creates and configures a new {@code BleScanner} instance.
      * 
-     * @param activity
-     *            the Android activity that owns the object
+     * @param context
+     *            application context for this object
      * @param scanCallback
      *            the callback object that will handle the device discovery
      * @throws BluetoothInaccessibleException
      *             thrown if the Bluetooth device is unaccessible
+     *             
+     * NOTE:  GJ Changed parameter 1 from Activity to Context.
      */
-    public BleScanner(Activity activity, ScanCallback scanCallback)
+    public BleScanner(Context context, ScanCallback scanCallback)
             throws BluetoothInaccessibleException {
 
-        if (!activity.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+        if (!context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             throw new BluetoothInaccessibleException();
         }
+
+        mHandler = new Handler();
 
         mBluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         if (mBluetoothAdapter == null) {
@@ -82,7 +87,7 @@ public class BleScanner {
         }
 
         mUserScanCallback = scanCallback;
-        mActivity = activity;
+        mContext = context;
         mScanHandler = new Handler();
     }
 
@@ -118,7 +123,7 @@ public class BleScanner {
         if (!mDeviceAddresses.contains(device.getAddress())) {
             mDeviceAddresses.add(device.getAddress());
 
-            mActivity.runOnUiThread(new Runnable() {
+            runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
                 mUserScanCallback.onBluetoothDeviceFound(device);
@@ -128,10 +133,19 @@ public class BleScanner {
         }
     };
 
+    /**
+     * Implementation of runOnUiThread so this works outside of an Activity.
+     * @param runnable
+     */
+    private void runOnUiThread(Runnable runnable) {
+        mHandler.post(runnable);
+    }
+
     private static final long SCAN_PERIOD_MILLIS = 10000;
+    private Handler mHandler;
     private final BluetoothAdapter mBluetoothAdapter;
 
-    private final Activity mActivity;
+    private final Context mContext;
     private final ScanCallback mUserScanCallback;
     private final Handler mScanHandler;
     private Runnable mScanStopper;

@@ -23,26 +23,30 @@
 */
 package uk.org.openseizuredetector;
 
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
-import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.text.format.Time;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.getpebble.android.kit.Constants;
-import com.getpebble.android.kit.PebbleKit;
-import com.getpebble.android.kit.util.PebbleDictionary;
+import com.angel.sdk.BleScanner;
+import com.angel.sdk.BluetoothInaccessibleException;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.IntBuffer;
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.UUID;
-
 
 
 /**
@@ -55,17 +59,42 @@ public class SdDataSourceAngel extends SdDataSource {
     private Time mStatusTime;
     private int mDataPeriod = 5;    // Period at which data is sent from watch to phone (sec)
     private int mAppRestartTimeout = 10;  // Timeout before re-starting watch app (sec) if we have not received
-                                           // data after mDataPeriod
+    // data after mDataPeriod
     //private Looper mServiceLooper;
     private int mFaultTimerPeriod = 30;  // Fault Timer Period in sec
+
+    private String mAngelSensorName;
+    private String mAngelSensorAddress;
+    private BluetoothAdapter mBluetoothAdapter;
+    private BluetoothDevice mAngelSensorDevice;
+    private BluetoothGatt mBluetoothGatt;
+    private BluetoothGattCharacteristic mTempChar;
+    private boolean mScanning;
+    //private BleScanner mBleScanner;
+    private final int SCAN_PERIOD = 30000;
+
+    private Handler mHandler;
 
     private String TAG = "SdDataSourceAngel";
 
     private int NSAMP = 512;   // Number of samples in fft input dataset.
 
+    private final String UUID_BATTERY = "0000180f-0000-1000-8000-00805f9b34fb";
+    private final String UUID_THERMOMETER = "00001809-0000-1000-8000-00805f9b34fb";
+    private final String UUID_HEARTRATE = "0000180d-0000-1000-8000-00805f9b34fb";
+    private final String UUID_WAVEFORM = "481d178c-10dd-11e4-b514-b2227cce2b54";
+    private final String UUID_TERMINAL = "41e1bd6a-9e39-441c-9312-b6e862472480";
+    private final String UUID_ACTIVITY = "68b52738-4a04-40e1-8f83-337a29c3284d";
+    private final String UUID_ALARMCLOCK = "7cd50edd-8bab-44ff-a8e8-82e19393af10";
+
+    private final String UUID_TEMPMEAS_CHAR = "00002a1c-0000-1000-8000-00805f9b34fb";
+
+    public static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
+
     public SdDataSourceAngel(Context context, SdDataReceiver sdDataReceiver) {
-        super(context,sdDataReceiver);
+        super(context, sdDataReceiver);
         mName = "Angel";
+        mHandler = new Handler();
     }
 
 
@@ -77,6 +106,7 @@ public class SdDataSourceAngel extends SdDataSource {
         Log.v(TAG, "start()");
         updatePrefs();
         startAngelServer();
+        Log.v(TAG,"Returned from startAngelServer()");
         // Start timer to check status of pebble regularly.
         mStatusTime = new Time(Time.getCurrentTimezone());
         // use a timer to check the status of the pebble app on the same frequency
@@ -87,6 +117,7 @@ public class SdDataSourceAngel extends SdDataSource {
             mStatusTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
+                    Log.v(TAG,"calling getStatus()");
                     getStatus();
                 }
             }, 0, mDataPeriod * 1000);
@@ -225,20 +256,137 @@ public class SdDataSourceAngel extends SdDataSource {
         }
     }
 
-
     /**
-     * Set this server to receive pebble data by registering it as
-     * A PebbleDataReceiver
+     * Set this server to receive Angel Sensor Data by connecting to the Sensor and then
+     * Registering to receive data.
      */
     private void startAngelServer() {
         Log.v(TAG, "StartAngelServer()");
+        // Initializes Bluetooth adapter.
+        final BluetoothManager bluetoothManager =
+                (BluetoothManager) mContext.getSystemService(Context.BLUETOOTH_SERVICE);
+        mBluetoothAdapter = bluetoothManager.getAdapter();
+        findAngelSensor();
+        Log.v(TAG,"Returned from findAngelSensor()");
     }
+
+
+    private void findAngelSensor() {
+        Log.v(TAG,"findAngelSensor()");
+        // Stops scanning after a pre-defined scan period.
+        mHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                Log.v(TAG,"BLE Scan Timed Out");
+                mScanning = false;
+                mBluetoothAdapter.stopLeScan(mLeScanCallback);
+            }
+        }, SCAN_PERIOD);
+        Log.v(TAG,"Starting BLE Scan");
+        mScanning = true;
+        mBluetoothAdapter.startLeScan(mLeScanCallback);
+    }
+
+    private BluetoothAdapter.LeScanCallback mLeScanCallback =
+            new BluetoothAdapter.LeScanCallback() {
+                @Override
+                public void onLeScan(final BluetoothDevice device, int rssi,
+                                     byte[] scanRecord) {
+                    Log.v(TAG,"onLeScan() - found "+device.getName());
+                    if (device.getName() != null && device.getName().startsWith("Angel")) {
+                        Log.v(TAG, "Found Angel Sensor - " + mAngelSensorName + ", " + mAngelSensorAddress);
+                        mBluetoothAdapter.stopLeScan(mLeScanCallback);
+                        mAngelSensorName = device.getName();
+                        mAngelSensorAddress = device.getAddress();
+                        mAngelSensorDevice = device;
+                        Log.v(TAG, "Found Angel Sensor - " + mAngelSensorName + ", " + mAngelSensorAddress);
+                        mBluetoothGatt = mAngelSensorDevice.connectGatt(mContext,true,mGattCallback);
+                    }
+                }
+            };
+
+
+    // Various callback methods defined by the BLE API.
+    private final BluetoothGattCallback mGattCallback =
+            new BluetoothGattCallback() {
+                @Override
+                public void onConnectionStateChange(BluetoothGatt gatt, int status,
+                                                    int newState) {
+                    if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        Log.i(TAG, "Connected to GATT server.");
+                        Log.i(TAG, "Attempting to start service discovery:");
+                        mBluetoothGatt.discoverServices();
+                    } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                        Log.i(TAG, "Disconnected from GATT server.");
+                    }
+                }
+
+                @Override
+                // New services discovered
+                public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        Log.v(TAG,"onServiceDiscovered() - GATT_SUCCESS");
+                        List<BluetoothGattService> servList = gatt.getServices();
+                        Log.v(TAG,servList.toString());
+                        for (BluetoothGattService service : servList) {
+                            if (service.getUuid().equals(UUID.fromString(UUID_BATTERY))) {
+                                Log.v(TAG,"Found Battery Service");
+                            } else if (service.getUuid().equals(UUID.fromString(UUID_THERMOMETER))) {
+                                Log.v(TAG,"Found Thermometer Service");
+                                BluetoothGattCharacteristic bleChar = service.getCharacteristic(UUID.fromString(UUID_TEMPMEAS_CHAR));
+
+                                mBluetoothGatt.setCharacteristicNotification(bleChar,true);
+                                BluetoothGattDescriptor descriptor = bleChar.getDescriptor(
+                                        UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG));
+                                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                                mBluetoothGatt.writeDescriptor(descriptor);
+                                mTempChar = bleChar;
+                            } else if (service.getUuid().equals(UUID.fromString(UUID_ACTIVITY))) {
+                                Log.v(TAG,"Found Activity Service");
+                            }else if (service.getUuid().equals(UUID.fromString(UUID_ALARMCLOCK))) {
+                                Log.v(TAG,"Found Alarm Clock Service");
+                            }else if (service.getUuid().equals(UUID.fromString(UUID_HEARTRATE))) {
+                                Log.v(TAG,"Found Heart Rate Service");
+                            }else if (service.getUuid().equals(UUID.fromString(UUID_TERMINAL))) {
+                                Log.v(TAG,"Found Terminal Service");
+                            } else if (service.getUuid().equals(UUID.fromString(UUID_WAVEFORM))) {
+                                Log.v(TAG, "Found Waveform Service");
+                            } else {
+                                Log.v(TAG, "Unknown Service - type=" + service.getType() + " UUID=" + service.getUuid());
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "onServicesDiscovered received: " + status);
+                    }
+                }
+
+                @Override
+                // Result of a characteristic read operation
+                public void onCharacteristicRead(BluetoothGatt gatt,
+                                                 BluetoothGattCharacteristic characteristic,
+                                                 int status) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        Log.v(TAG,"onCharacteristicRead() - GATT_SUCCESS");
+                        if (characteristic.getUuid().equals(UUID.fromString(UUID_TEMPMEAS_CHAR))) {
+                            Log.v(TAG,"Got Temperature Measurement");
+                        }
+                    }
+                }
+
+                @Override
+                public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                    Log.v(TAG,"onCharacteristicChanged()");
+                }
+            };
+
+
+
 
     /**
      * De-register this server from receiving pebble data
      */
     public void stopAngelServer() {
-        Log.v(TAG, "stopAngelServer(): Stopping Pebble Server");
+        Log.v(TAG, "stopAngelServer(): Stopping Angel Sensor Server");
     }
 
 
@@ -248,14 +396,19 @@ public class SdDataSourceAngel extends SdDataSource {
      * If the watch app is not running, it attempts to re-start it.
      */
     public void getStatus() {
+        Log.v(TAG,"getStatus()");
         Time tnow = new Time(Time.getCurrentTimezone());
         long tdiff;
         tnow.setToNow();
         // get time since the last data was received from the Pebble watch.
         tdiff = (tnow.toMillis(false) - mStatusTime.toMillis(false));
-        Log.v(TAG, "getStatus()");
-        // Check we are actually connected to the pebble.
-        //mSdData.pebbleConnected = PebbleKit.isWatchConnected(mContext);
+        if (mTempChar == null) {
+            Log.v(TAG,"mTempChar is Null, not reading data...");
+        } else {
+            //Log.v(TAG, "getStatus() - temp = " + mTempChar.getFloatValue(1, 0));
+            Log.v(TAG,"getStatus()");
+        }
+
     }
 
 

@@ -76,7 +76,7 @@ public class BleDevice {
     }
 
     public BleDevice(Context context, LifecycleCallback lifecycleCallback, Handler callbackHandler) {
-        mActivity = (Activity) context;
+        mContext = context;
         mLifecycleCallback = lifecycleCallback;
         mCallbackHandler = callbackHandler;
     }
@@ -102,11 +102,12 @@ public class BleDevice {
         mDeviceAddress = deviceAddress;
         if (mBleController == null) {
             mAction = Action.CONNECT;
-            Intent gattServiceIntent = new Intent(mActivity.getApplicationContext(),
+            Intent gattServiceIntent = new Intent(mContext,
                                                   BleController.class);
-            boolean gotBinded = mActivity.getApplicationContext().bindService(gattServiceIntent,
+            boolean gotBinded = mContext.bindService(gattServiceIntent,
                                                                               mServiceConnection,
                                                                               Context.BIND_AUTO_CREATE);
+            Log.e(TAG,"BleDevice failed to bind to BleController");
             if (!gotBinded) throw new RuntimeException("Failed to bind to BleController");
         } else {
             connect(mBleController.getRemoteDevice(deviceAddress));
@@ -229,6 +230,7 @@ public class BleDevice {
     }
 
     private void connect(BluetoothDevice device) {
+        Log.v(TAG,"connect()");
         mBluetoothGatt = device.connectGatt(mBleController, false, mGattCallback);
     }
     
@@ -409,6 +411,18 @@ public class BleDevice {
                 });
             }
         }
+
+        /**
+         * GJ Created this to get rid of run-time erros.
+         * @param gatt
+         * @param mtu
+         * @param status
+         */
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            Log.v(TAG,"onMtuChanged()");
+            //super.onMtuChanged(gatt, mtu, status);
+        }
     };
     
 
@@ -429,7 +443,7 @@ public class BleDevice {
     private BluetoothGatt mBluetoothGatt;
     private Action mAction = Action.IDLE;
     private String mDeviceAddress;
-    private final Activity mActivity;
+    private final Context mContext;
     private final LifecycleCallback mLifecycleCallback;
     private BleController mBleController = null;
     private final HashMap<UUID, BleService> mBleServices = new HashMap<UUID, BleService>();

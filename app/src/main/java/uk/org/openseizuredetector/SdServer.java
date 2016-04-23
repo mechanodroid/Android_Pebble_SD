@@ -196,6 +196,10 @@ public class SdServer extends Service implements SdDataReceiver {
                 Log.v(TAG, "Selecting Network DataSource");
                 mSdDataSource = new SdDataSourceNetwork(this.getApplicationContext(), this);
                 break;
+            case "Angel":
+                Log.v(TAG, "Selecting Angel Sensor DataSource");
+                mSdDataSource = new SdDataSourceAngel(this.getApplicationContext(), this);
+                break;
             default:
                 Log.v(TAG, "Datasource " + mSdDataSourceName + " not recognised - Exiting");
                 mUtil.showToast("Datasource " + mSdDataSourceName + " not recognised - Exiting");
