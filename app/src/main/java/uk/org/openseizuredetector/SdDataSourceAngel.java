@@ -333,14 +333,36 @@ public class SdDataSourceAngel extends SdDataSource {
                                 Log.v(TAG,"Found Battery Service");
                             } else if (service.getUuid().equals(UUID.fromString(UUID_THERMOMETER))) {
                                 Log.v(TAG,"Found Thermometer Service");
-                                BluetoothGattCharacteristic bleChar = service.getCharacteristic(UUID.fromString(UUID_TEMPMEAS_CHAR));
+                                mTempChar = service.getCharacteristic(
+                                        UUID.fromString(UUID_TEMPMEAS_CHAR));
+                                Log.v(TAG,"mTempChar = "+mTempChar.toString());
+                                BluetoothGattDescriptor descriptor;
+                                //mBluetoothGatt.setCharacteristicNotification(mTempChar,true);
+                                //BluetoothGattDescriptor descriptor = mTempChar.getDescriptor(
+                                //        UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG));
+                                //descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                                //mBluetoothGatt.writeDescriptor(descriptor);
 
-                                mBluetoothGatt.setCharacteristicNotification(bleChar,true);
-                                BluetoothGattDescriptor descriptor = bleChar.getDescriptor(
-                                        UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG));
-                                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-                                mBluetoothGatt.writeDescriptor(descriptor);
-                                mTempChar = bleChar;
+                                descriptor = mTempChar.getDescriptor(UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG));
+                                final byte NOTIFY_AND_INDICATE[] = {3,0};
+                                descriptor.setValue(true ? NOTIFY_AND_INDICATE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                                //mWaitingForConfirmation = true;
+                                if (!mBluetoothGatt.writeDescriptor(descriptor)) {
+                                    throw new AssertionError("Failed to write BLE descriptor " + descriptor.getUuid() + " for UUID " + mTempChar.getUuid());
+                                }
+
+                                //try {
+                                //    synchronized (this) {
+                                //        wait(DESCRIPTOR_WRITE_TIMEOUT);
+                                //        if (mWaitingForConfirmation) {
+                                //            throw new AssertionError("Did not receive confirmation for mBluetoothGatt.writeDescriptor(" + characteristic.getUuid() + ")");
+                                //        }
+                                //    }
+                                //} catch (InterruptedException e) {
+                                //    throw new AssertionError("Interrupted while waiting for response to mBluetoothGatt.writeDescriptor");
+                                //}
+
+
                             } else if (service.getUuid().equals(UUID.fromString(UUID_ACTIVITY))) {
                                 Log.v(TAG,"Found Activity Service");
                             }else if (service.getUuid().equals(UUID.fromString(UUID_ALARMCLOCK))) {
@@ -368,8 +390,10 @@ public class SdDataSourceAngel extends SdDataSource {
                     if (status == BluetoothGatt.GATT_SUCCESS) {
                         Log.v(TAG,"onCharacteristicRead() - GATT_SUCCESS");
                         if (characteristic.getUuid().equals(UUID.fromString(UUID_TEMPMEAS_CHAR))) {
-                            Log.v(TAG,"Got Temperature Measurement");
+                            Log.v(TAG,"Got Temperature Measurement - "+characteristic.toString());
                         }
+                    } else {
+                        Log.v(TAG,"onCharacteristicRead() - status = "+status);
                     }
                 }
 
@@ -386,7 +410,10 @@ public class SdDataSourceAngel extends SdDataSource {
      * De-register this server from receiving pebble data
      */
     public void stopAngelServer() {
+
         Log.v(TAG, "stopAngelServer(): Stopping Angel Sensor Server");
+        mStatusTimer.cancel();
+        mStatusTimer.purge();
     }
 
 
@@ -405,8 +432,12 @@ public class SdDataSourceAngel extends SdDataSource {
         if (mTempChar == null) {
             Log.v(TAG,"mTempChar is Null, not reading data...");
         } else {
-            //Log.v(TAG, "getStatus() - temp = " + mTempChar.getFloatValue(1, 0));
-            Log.v(TAG,"getStatus()");
+            // request characteristic read (asynchronous) - calls onCharacteristicRead
+            Log.v(TAG, "getStatus() - calling ReadCharacteristic()");
+            boolean retVal = mBluetoothGatt.readCharacteristic(mTempChar);
+            float val = -1;
+            //float val = mTempChar.getFloatValue(BluetoothGattCharacteristic.FORMAT_FLOAT,0);
+            Log.v(TAG, "getStatus() - retVal = " + retVal);
         }
 
     }
