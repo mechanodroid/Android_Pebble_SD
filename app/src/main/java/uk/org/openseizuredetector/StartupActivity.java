@@ -35,6 +35,7 @@ import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -72,8 +73,19 @@ public class StartupActivity extends Activity {
         Thread.setDefaultUncaughtExceptionHandler(new OsdUncaughtExceptionHandler(StartupActivity.this));
         //int i = 5/0;  // Force exception to test handler.
 
+        // Force the screen to stay on when the app is running
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+
         setContentView(R.layout.startup_activity);
         mUtil = new OsdUtil(this);
+
+        // Read the default settings from the xml preferences files, so we do
+        // not have to use the hard coded ones in the java files.
+        PreferenceManager.setDefaultValues(this, R.xml.alarm_prefs, true);
+        PreferenceManager.setDefaultValues(this, R.xml.camera_prefs, true);
+        PreferenceManager.setDefaultValues(this, R.xml.general_prefs, true);
+        PreferenceManager.setDefaultValues(this, R.xml.network_datasource_prefs, true);
 
         Button b = (Button)findViewById(R.id.settingsButton);
         b.setOnClickListener(new View.OnClickListener() {
@@ -106,7 +118,8 @@ public class StartupActivity extends Activity {
             @Override
             public void onClick(View view) {
                 Log.v(TAG, "install Osd Watch App button clicked");
-                mUtil.installOsdWatchApp();
+                //mUtil.installOsdWatchApp();
+                mConnection.mSdServer.mSdDataSource.installWatchApp();
             }
         });
 

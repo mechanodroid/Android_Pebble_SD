@@ -49,15 +49,25 @@ import android.widget.TextView;
 import android.widget.Button;
 
 import java.lang.reflect.Field;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
 //MPAndroidChart
+import com.github.mikephil.charting.charts.BarChart;
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.XAxis;
+import com.github.mikephil.charting.components.YAxis;
+import com.github.mikephil.charting.data.BarData;
+import com.github.mikephil.charting.data.BarDataSet;
+import com.github.mikephil.charting.data.BarEntry;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
+import com.github.mikephil.charting.utils.ColorTemplate;
+import com.github.mikephil.charting.utils.LargeValueFormatter;
+import com.github.mikephil.charting.utils.ValueFormatter;
 
 public class MainActivity extends Activity {
     static final String TAG = "MainActivity";
@@ -162,6 +172,9 @@ public class MainActivity extends Activity {
                 Log.v(TAG, "action_launch_pebble_app");
                 mUtil.startPebbleApp();
                 return true;
+            case R.id.action_instal_watch_app:
+                Log.v(TAG, "action_install_watch_app");
+                mConnection.mSdServer.mSdDataSource.installWatchApp();
 
             case R.id.action_accept_alarm:
                 Log.v(TAG, "action_accept_alarm");
@@ -207,6 +220,17 @@ public class MainActivity extends Activity {
                 Log.v(TAG, "action_test_sms_alarm");
                 if (mConnection.mBound) {
                     mConnection.mSdServer.sendSMSAlarm();
+                }
+                return true;
+            case R.id.action_logs:
+                Log.v(TAG, "action_logs");
+                try {
+                    Intent prefsIntent = new Intent(
+                            MainActivity.this,
+                            LogManagerActivity.class);
+                    this.startActivity(prefsIntent);
+                } catch (Exception ex) {
+                    Log.v(TAG, "exception starting log manager activity " + ex.toString());
                 }
                 return true;
             case R.id.action_settings:
@@ -499,33 +523,86 @@ public class MainActivity extends Activity {
 
             ////////////////////////////////////////////////////////////
             // Produce graph
-            LineChart mChart = (LineChart) findViewById(R.id.chart1);
-            mChart.setDescription("");
+            BarChart mChart = (BarChart) findViewById(R.id.chart1);
+            mChart.setDrawBarShadow(false);
             mChart.setNoDataTextDescription("You need to provide data for the chart.");
-            // X Values
+            mChart.setDescription("");
+
+            // X and Y Values
             ArrayList<String> xVals = new ArrayList<String>();
+            ArrayList<BarEntry> yBarVals = new ArrayList<BarEntry>();
             for (int i = 0; i < 10; i++) {
-                xVals.add((i) + "");
-            }
-            // Y Values
-            ArrayList<Entry> yVals = new ArrayList<Entry>();
-            for (int i = 0; i < 10; i++) {
-                if (mConnection.mSdServer != null)
-                    yVals.add(new Entry(mConnection.mSdServer.mSdData.simpleSpec[i], i));
-                else
-                    yVals.add(new Entry(i, i));
+                xVals.add(i+"-"+(i+1)+" Hz");
+                if (mConnection.mSdServer != null) {
+                    yBarVals.add(new BarEntry(mConnection.mSdServer.mSdData.simpleSpec[i], i));
+                }
+                else {
+                    yBarVals.add(new BarEntry(i,i));
+                }
             }
 
             // create a dataset and give it a type
-            LineDataSet set1 = new LineDataSet(yVals, "DataSet 1");
-            set1.setColor(Color.BLACK);
-            set1.setLineWidth(1f);
+            BarDataSet barDataSet = new BarDataSet(yBarVals,"Spectrum");
+            try {
+                int[] barColours = new int[10];
+                for (int i = 0; i < 10; i++) {
+                    if ((i < mConnection.mSdServer.mSdData.alarmFreqMin) ||
+                            (i > mConnection.mSdServer.mSdData.alarmFreqMax)) {
+                        barColours[i] = Color.GRAY;
+                    } else {
+                        barColours[i] = Color.RED;
+                    }
+                }
+                barDataSet.setColors(barColours);
+            } catch (NullPointerException e){
+                Log.v(TAG,"Null pointer exception setting bar colours");
+            }
+            barDataSet.setBarSpacePercent(20f);
+            barDataSet.setBarShadowColor(Color.WHITE);
+            BarData barData = new BarData(xVals,barDataSet);
+            barData.setValueFormatter(new ValueFormatter() {
+                                          @Override
+                                          public String getFormattedValue(float v) {
+                                              DecimalFormat format = new DecimalFormat("####");
+                                              return format.format(v);
+                                          }
+                                      });
+                    mChart.setData(barData);
 
-            ArrayList<LineDataSet> dataSets = new ArrayList<LineDataSet>();
-            dataSets.add(set1); // add the datasets
-            LineData data = new LineData(xVals, dataSets);
-            //data.setValueTextSize(10f);
-            mChart.setData(data);
+            // format the axes
+            XAxis xAxis = mChart.getXAxis();
+            xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+            xAxis.setTextSize(10f);
+            xAxis.setDrawAxisLine(true);
+            xAxis.setDrawLabels(true);
+            // Note:  the default text colour is BLACK, so does not show up on black background!!!
+            //  This took a lot of finding....
+            xAxis.setTextColor(Color.WHITE);
+            xAxis.setDrawGridLines(false);
+
+            YAxis yAxis = mChart.getAxisLeft();
+            yAxis.setAxisMinValue(0f);
+            yAxis.setAxisMaxValue(3000f);
+            yAxis.setDrawGridLines(true);
+            yAxis.setDrawLabels(true);
+            yAxis.setTextColor(Color.WHITE);
+            yAxis.setValueFormatter(new ValueFormatter() {
+                @Override
+                public String getFormattedValue(float v) {
+                    DecimalFormat format = new DecimalFormat("#####");
+                    return format.format(v);
+                }
+            });
+
+            YAxis yAxis2 = mChart.getAxisRight();
+            yAxis2.setDrawGridLines(false);
+
+            try {
+                mChart.getLegend().setEnabled(false);
+            } catch (NullPointerException e) {
+                Log.v(TAG,"Null Pointer Exception setting legend");
+            }
+
             mChart.invalidate();
         }
     };
