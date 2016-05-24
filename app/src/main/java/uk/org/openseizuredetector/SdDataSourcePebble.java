@@ -98,9 +98,15 @@ public class SdDataSourcePebble extends SdDataSource {
     private int KEY_FALL_THRESH_MAX = 22;
     private int KEY_FALL_WINDOW = 23;
     private int KEY_FALL_ACTIVE = 24;
-    private int KEY_DATA_UPDATE_PERIOD = 25;
-    private int KEY_MUTE_PERIOD = 26;
-    private int KEY_MAN_ALARM_PERIOD = 27;
+
+    private int KEY_SAMPLE_FREQ = 25;
+    private int KEY_SAMPLE_PERIOD = 26;
+    private int KEY_DATA_UPDATE_PERIOD = 27;
+    private int KEY_MUTE_PERIOD = 28;
+    private int KEY_MAN_ALARM_PERIOD = 29;
+    private int KEY_VERSION_MAJOR = 30;
+    private int KEY_VERSION_MINOR = 31;
+
 
     // Values of the KEY_DATA_TYPE entry in a message
     private int DATA_TYPE_RESULTS = 1;   // Analysis Results
@@ -109,6 +115,7 @@ public class SdDataSourcePebble extends SdDataSource {
     private short mDataUpdatePeriod;
     private short mMutePeriod;
     private short mManAlarmPeriod;
+    private short mSampleFreq;
     private short mAlarmFreqMin;
     private short mAlarmFreqMax;
     private short mWarnTime;
@@ -251,6 +258,10 @@ public class SdDataSourcePebble extends SdDataSource {
             mManAlarmPeriod = (short) Integer.parseInt(prefStr);
             Log.v(TAG, "updatePrefs() ManAlarmPeriod = " + mManAlarmPeriod);
 
+            prefStr = SP.getString("SampleFreq","SET_FROM_XML");
+            mSampleFreq = (short) Integer.parseInt(prefStr);
+            Log.v(TAG, "updatePrefs() SampleFreq = " + mSampleFreq);
+
             prefStr = SP.getString("AlarmFreqMin","SET_FROM_XML");
             mAlarmFreqMin = (short) Integer.parseInt(prefStr);
             Log.v(TAG, "updatePrefs() AlarmFreqMin = " + mAlarmFreqMin);
@@ -354,6 +365,7 @@ public class SdDataSourcePebble extends SdDataSource {
                 if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
                         == DATA_TYPE_SETTINGS) {
                     Log.v(TAG, "DATA_TYPE = Settings");
+                    mSdData.sampleFreq = data.getUnsignedIntegerAsLong(KEY_SAMPLE_FREQ);
                     mSdData.alarmFreqMin = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MIN);
                     mSdData.alarmFreqMax = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MAX);
                     mSdData.nMin = data.getUnsignedIntegerAsLong(KEY_NMIN);
@@ -433,6 +445,7 @@ public class SdDataSourcePebble extends SdDataSource {
         setDict.addInt16(KEY_DATA_UPDATE_PERIOD, mDataUpdatePeriod);
         setDict.addInt16(KEY_MUTE_PERIOD, mMutePeriod);
         setDict.addInt16(KEY_MAN_ALARM_PERIOD, mManAlarmPeriod);
+        setDict.addInt16(KEY_SAMPLE_FREQ, mSampleFreq);
         setDict.addInt16(KEY_ALARM_FREQ_MIN, mAlarmFreqMin);
         setDict.addInt16(KEY_ALARM_FREQ_MAX, mAlarmFreqMax);
         setDict.addUint16(KEY_WARN_TIME, mWarnTime);

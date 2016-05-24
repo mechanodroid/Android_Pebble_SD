@@ -19,6 +19,14 @@
             android:title="Manual Alarm Period (sec)" />
     </PreferenceCategory>
     <PreferenceCategory android:title="Seizure Detector Settings">
+        <ListPreference
+            android:key="SampleFreq"
+            android:title="Sampling Frequency (Hz)"
+            android:summary="Acceleration data sampling frequency in Hz."
+            android:entries="@array/sample_freq_list"
+            android:entryValues="@array/sample_freq_values"
+            android:dialogTitle="Select Sample Frequency" />
+
         <EditTextPreference
             android:defaultValue="3"
             android:key="AlarmFreqMin"
