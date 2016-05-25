@@ -106,6 +106,7 @@ public class SdDataSourcePebble extends SdDataSource {
     private int KEY_MAN_ALARM_PERIOD = 29;
     private int KEY_VERSION_MAJOR = 30;
     private int KEY_VERSION_MINOR = 31;
+    private int KEY_FREQ_CUTOFF = 32;
 
 
     // Values of the KEY_DATA_TYPE entry in a message
@@ -116,6 +117,7 @@ public class SdDataSourcePebble extends SdDataSource {
     private short mMutePeriod;
     private short mManAlarmPeriod;
     private short mSampleFreq;
+    private short mFreqCutoff;
     private short mAlarmFreqMin;
     private short mAlarmFreqMax;
     private short mWarnTime;
@@ -262,6 +264,10 @@ public class SdDataSourcePebble extends SdDataSource {
             mSampleFreq = (short) Integer.parseInt(prefStr);
             Log.v(TAG, "updatePrefs() SampleFreq = " + mSampleFreq);
 
+            prefStr = SP.getString("FreqCutoff","SET_FROM_XML");
+            mFreqCutoff = (short) Integer.parseInt(prefStr);
+            Log.v(TAG, "updatePrefs() FreqCutoff = " + mFreqCutoff);
+
             prefStr = SP.getString("AlarmFreqMin","SET_FROM_XML");
             mAlarmFreqMin = (short) Integer.parseInt(prefStr);
             Log.v(TAG, "updatePrefs() AlarmFreqMin = " + mAlarmFreqMin);
@@ -366,6 +372,7 @@ public class SdDataSourcePebble extends SdDataSource {
                         == DATA_TYPE_SETTINGS) {
                     Log.v(TAG, "DATA_TYPE = Settings");
                     mSdData.sampleFreq = data.getUnsignedIntegerAsLong(KEY_SAMPLE_FREQ);
+                    mSdData.freqCutoff = data.getUnsignedIntegerAsLong(KEY_FREQ_CUTOFF);
                     mSdData.alarmFreqMin = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MIN);
                     mSdData.alarmFreqMax = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MAX);
                     mSdData.nMin = data.getUnsignedIntegerAsLong(KEY_NMIN);
@@ -446,6 +453,7 @@ public class SdDataSourcePebble extends SdDataSource {
         setDict.addInt16(KEY_MUTE_PERIOD, mMutePeriod);
         setDict.addInt16(KEY_MAN_ALARM_PERIOD, mManAlarmPeriod);
         setDict.addInt16(KEY_SAMPLE_FREQ, mSampleFreq);
+        setDict.addInt16(KEY_FREQ_CUTOFF, mFreqCutoff);
         setDict.addInt16(KEY_ALARM_FREQ_MIN, mAlarmFreqMin);
         setDict.addInt16(KEY_ALARM_FREQ_MAX, mAlarmFreqMax);
         setDict.addUint16(KEY_WARN_TIME, mWarnTime);
