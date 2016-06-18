@@ -25,7 +25,9 @@
             android:summary="Acceleration data sampling frequency in Hz."
             android:entries="@array/sample_freq_list"
             android:entryValues="@array/sample_freq_values"
-            android:dialogTitle="Select Sample Frequency" />
+            android:dialogTitle="Select Sample Frequency"
+            android:defaultValue="100"
+            />
         <EditTextPreference
             android:key="FreqCutoff"
             android:title="Cutoff Frequency (Hz)"
