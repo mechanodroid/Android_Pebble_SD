@@ -99,11 +99,11 @@ public class SdDataSourcePebble extends SdDataSource {
     private int KEY_FALL_WINDOW = 23;
     private int KEY_FALL_ACTIVE = 24;
 
-    private int KEY_SAMPLE_FREQ = 25;
-    private int KEY_SAMPLE_PERIOD = 26;
-    private int KEY_DATA_UPDATE_PERIOD = 27;
-    private int KEY_MUTE_PERIOD = 28;
-    private int KEY_MAN_ALARM_PERIOD = 29;
+    private int KEY_DATA_UPDATE_PERIOD = 25;
+    private int KEY_MUTE_PERIOD = 26;
+    private int KEY_MAN_ALARM_PERIOD = 27;
+    private int KEY_SAMPLE_FREQ = 28;
+    private int KEY_SAMPLE_PERIOD = 29;
     private int KEY_VERSION_MAJOR = 30;
     private int KEY_VERSION_MINOR = 31;
     private int KEY_FREQ_CUTOFF = 32;
