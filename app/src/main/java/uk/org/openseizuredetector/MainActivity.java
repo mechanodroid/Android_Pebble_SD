@@ -69,6 +69,9 @@ import com.github.mikephil.charting.utils.ColorTemplate;
 import com.github.mikephil.charting.utils.LargeValueFormatter;
 import com.github.mikephil.charting.utils.ValueFormatter;
 
+import uk.org.openseizuredetector.hrmonitor.HrMonitorScanner;
+
+
 public class MainActivity extends Activity {
     static final String TAG = "MainActivity";
     private int okColour = Color.BLUE;
@@ -240,6 +243,17 @@ public class MainActivity extends Activity {
                     //this.startActivity(prefsIntent);
                 } catch (Exception ex) {
                     Log.v(TAG, "exception starting log manager activity " + ex.toString());
+                }
+                return true;
+            case R.id.action_hrMonitorScanner:
+                Log.v(TAG, "action_hrMonitorScanner");
+                try {
+                    Intent prefsIntent = new Intent(
+                            MainActivity.this,
+                            HrMonitorScanner.class);
+                    this.startActivity(prefsIntent);
+                } catch (Exception ex) {
+                    Log.v(TAG, "exception starting HR Monitor Scanneractivity " + ex.toString());
                 }
                 return true;
             case R.id.action_settings:
