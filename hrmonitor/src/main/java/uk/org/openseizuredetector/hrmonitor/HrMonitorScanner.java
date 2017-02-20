@@ -66,8 +66,8 @@ public class HrMonitorScanner extends ListActivity {
 
         SharedPreferences SP = PreferenceManager
                 .getDefaultSharedPreferences(getApplicationContext());
-        String HrAddrStr = SP.getString("HRAddr", "10");
-        Log.v(TAG, "updatePrefs() - mAppRestartTimeout = " + mAppRestartTimeout);
+        String hrAddrStr = SP.getString("HRAddr", "10");
+        Log.v(TAG, "updatePrefs() - HrAddrStr = " + hrAddrStr);
 
         // Ensures Bluetooth is enabled on the device. If Bluetooth is not
         // currently enabled,

@@ -69,6 +69,7 @@ import com.github.mikephil.charting.utils.ColorTemplate;
 import com.github.mikephil.charting.utils.LargeValueFormatter;
 import com.github.mikephil.charting.utils.ValueFormatter;
 
+import uk.org.openseizuredetector.hrmonitor.HrMonitor;
 import uk.org.openseizuredetector.hrmonitor.HrMonitorScanner;
 
 
@@ -250,7 +251,7 @@ public class MainActivity extends Activity {
                 try {
                     Intent prefsIntent = new Intent(
                             MainActivity.this,
-                            HrMonitorScanner.class);
+                            HrMonitor.class);
                     this.startActivity(prefsIntent);
                 } catch (Exception ex) {
                     Log.v(TAG, "exception starting HR Monitor Scanneractivity " + ex.toString());
