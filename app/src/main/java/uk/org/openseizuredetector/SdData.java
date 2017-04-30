@@ -74,8 +74,8 @@ public class SdData implements Parcelable {
     public long roiPower;
     public String alarmPhrase;
     public int simpleSpec[];
-    public boolean pebbleConnected = false;
-    public boolean pebbleAppRunning = false;
+    public boolean watchConnected = false;
+    public boolean watchAppRunning = false;
     public boolean serverOK = false;
 
     public SdData() {
@@ -104,8 +104,8 @@ public class SdData implements Parcelable {
             specPower = jo.optInt("specPower");
             roiPower = jo.optInt("roiPower");
             batteryPc = jo.optInt("batteryPc");
-            pebbleConnected = jo.optBoolean("pebbleConnected");
-            pebbleAppRunning = jo.optBoolean("pebbleAppRunning");
+            watchConnected = jo.optBoolean("pebbleConnected");
+            watchAppRunning = jo.optBoolean("pebbleAppRunning");
             alarmState = jo.optInt("alarmState");
             alarmPhrase = jo.optString("alarmPhrase");
             alarmThresh = jo.optInt("alarmThresh");
@@ -146,8 +146,8 @@ public class SdData implements Parcelable {
             jsonObj.put("specPower", specPower);
             jsonObj.put("roiPower", roiPower);
             jsonObj.put("batteryPc", batteryPc);
-            jsonObj.put("pebbleConnected", pebbleConnected);
-            jsonObj.put("pebbleAppRunning", pebbleAppRunning);
+            jsonObj.put("pebbleConnected", watchConnected);
+            jsonObj.put("pebbleAppRunning", watchAppRunning);
             jsonObj.put("haveSettings", haveSettings);
             jsonObj.put("alarmState", alarmState);
             jsonObj.put("alarmPhrase", alarmPhrase);

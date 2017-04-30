@@ -2,10 +2,12 @@
 <resources>
     <string-array name="datasource_list">
         <item>"Pebble Watch"</item>
+        <item>"Android Wear Watch"</item>
         <item>"Network"</item>
     </string-array>
     <string-array name="datasource_list_values">
         <item>"Pebble"</item>
+        <item>"AndroidWear"</item>
         <item>"Network"</item>
     </string-array>
 

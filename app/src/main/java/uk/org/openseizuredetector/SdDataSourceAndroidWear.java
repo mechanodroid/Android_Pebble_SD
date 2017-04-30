@@ -34,8 +34,6 @@ import android.text.format.Time;
 import android.util.Log;
 import android.widget.Toast;
 
-import com.getpebble.android.kit.PebbleKit;
-import com.getpebble.android.kit.util.PebbleDictionary;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -50,26 +48,24 @@ import java.util.TimerTask;
 import java.util.UUID;
 
 
-
 /**
- * Abstract class for a seizure detector data source.  Subclasses include a pebble smart watch data source and a
- * network data source.
+ * AndroidWear seizure detector data source.  
  */
-public class SdDataSourcePebble extends SdDataSource {
+public class SdDataSourceAndroidWear extends SdDataSource {
     private Handler mHandler = new Handler();
     private Timer mSettingsTimer;
     private Timer mStatusTimer;
-    private Time mPebbleStatusTime;
-    private boolean mPebbleAppRunningCheck = false;
+    private Time mAWStatusTime;
+    private boolean mAWAppRunningCheck = false;
     private int mAppRestartTimeout = 10;  // Timeout before re-starting watch app (sec) if we have not received
     // data after mDataUpdatePeriod
     //private Looper mServiceLooper;
     private int mFaultTimerPeriod = 30;  // Fault Timer Period in sec
     private int mSettingsPeriod = 60;  // period between requesting settings in seconds.
-    private PebbleKit.PebbleDataReceiver msgDataHandler = null;
+    private Handler msgDataHandler = null;   // FIXME do we need this?
 
 
-    private String TAG = "SdDataSourcePebble";
+    private String TAG = "SdDataSourceAndroidWear";
 
     private UUID SD_UUID = UUID.fromString("03930f26-377a-4a3d-aa3e-f3b19e421c9d");
     private int NSAMP = 512;   // Number of samples in fft input dataset.
@@ -147,11 +143,12 @@ public class SdDataSourcePebble extends SdDataSource {
     private double[] rawData = new double[MAX_RAW_DATA];
     private int nRawData = 0;
 
-    public SdDataSourcePebble(Context context, Handler handler,
-                              SdDataReceiver sdDataReceiver) {
+    public SdDataSourceAndroidWear(Context context, Handler handler,
+                                   SdDataReceiver sdDataReceiver) {
         super(context, handler, sdDataReceiver);
-        mName = "Pebble";
+        mName = "Android Wear";
         // Set default settings from XML files (mContext is set by super().
+        // FIXME - we are using the same preferences as the Pebble Datasource here.
         PreferenceManager.setDefaultValues(mContext,
                 R.xml.pebble_datasource_prefs, true);
     }
@@ -163,45 +160,45 @@ public class SdDataSourcePebble extends SdDataSource {
      */
     public void start() {
         Log.v(TAG, "start()");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.start()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.start()");
         updatePrefs();
-        startPebbleServer();
+        startWatchApp();
         // Start timer to check status of pebble regularly.
-        mPebbleStatusTime = new Time(Time.getCurrentTimezone());
+        mAWStatusTime = new Time(Time.getCurrentTimezone());
         // use a timer to check the status of the pebble app on the same frequency
         // as we get app data.
         if (mStatusTimer == null) {
             Log.v(TAG, "start(): starting status timer");
-            mUtil.writeToSysLogFile("SdDataSourcePebble.start() - starting status timer");
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.start() - starting status timer");
             mStatusTimer = new Timer();
             mStatusTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    getPebbleStatus();
+                    getAndroidWearStatus();
                 }
             }, 0, mDataUpdatePeriod * 1000);
         } else {
             Log.v(TAG, "start(): status timer already running.");
-            mUtil.writeToSysLogFile("SdDataSourcePebble.start() - status timer already running??");
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.start() - status timer already running??");
         }
         // make sure we get some data when we first start.
-        getPebbleData();
+        getAndroidWearData();
         // Start timer to retrieve pebble settings regularly.
-        getPebbleSdSettings();
+        getAndroidWearSdSettings();
         if (mSettingsTimer == null) {
             Log.v(TAG, "start(): starting settings timer");
-            mUtil.writeToSysLogFile("SdDataSourcePebble.start() - starting settings timer");
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.start() - starting settings timer");
             mSettingsTimer = new Timer();
             mSettingsTimer.schedule(new TimerTask() {
                 @Override
                 public void run() {
-                    //mUtil.writeToSysLogFile("SdDataSourcePebble.mSettingsTimer timed out.");
-                    getPebbleSdSettings();
+                    //mUtil.writeToSysLogFile("SdDataSourceAndroidWear.mSettingsTimer timed out.");
+                    getAndroidWearSdSettings();
                 }
             }, 0, 1000 * mSettingsPeriod);  // ask for settings less frequently than we get data
         } else {
             Log.v(TAG, "start(): settings timer already running.");
-            mUtil.writeToSysLogFile("SdDataSourcePebble.start() - settings timer already running??");
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.start() - settings timer already running??");
         }
     }
 
@@ -210,12 +207,12 @@ public class SdDataSourcePebble extends SdDataSource {
      */
     public void stop() {
         Log.v(TAG, "stop()");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.stop()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop()");
         try {
             // Stop the status timer
             if (mStatusTimer != null) {
                 Log.v(TAG, "stop(): cancelling status timer");
-                mUtil.writeToSysLogFile("SdDataSourcePebble.stop() - cancelling status timer");
+                mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop() - cancelling status timer");
                 mStatusTimer.cancel();
                 mStatusTimer.purge();
                 mStatusTimer = null;
@@ -223,29 +220,29 @@ public class SdDataSourcePebble extends SdDataSource {
             // Stop the settings timer
             if (mSettingsTimer != null) {
                 Log.v(TAG, "stop(): cancelling settings timer");
-                mUtil.writeToSysLogFile("SdDataSourcePebble.stop() - cancelling settings timer");
+                mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop() - cancelling settings timer");
                 mSettingsTimer.cancel();
                 mSettingsTimer.purge();
                 mSettingsTimer = null;
             }
             // Stop pebble message handler.
-            Log.v(TAG, "stop(): stopping pebble server");
-            mUtil.writeToSysLogFile("SdDataSourcePebble.stop() - stopping pebble server");
-            stopPebbleServer();
+            Log.v(TAG, "stop(): stopping AndroidWear server");
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop() - stopping Android Wear server");
+            stopAndroidWearServer();
 
         } catch (Exception e) {
             Log.v(TAG, "Error in stop() - " + e.toString());
-            mUtil.writeToSysLogFile("SdDataSourcePebble.stop() - error - "+e.toString());
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop() - error - "+e.toString());
         }
     }
 
     /**
      * updatePrefs() - update basic settings from the SharedPreferences
-     * - defined in res/xml/SdDataSourcePebblePrefs.xml
+     * - defined in res/xml/SdDataSourceAndroidWearPrefs.xml
      */
     public void updatePrefs() {
         Log.v(TAG, "updatePrefs()");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.updatePrefs()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.updatePrefs()");
         SharedPreferences SP = PreferenceManager
                 .getDefaultSharedPreferences(mContext);
         try {
@@ -348,7 +345,7 @@ public class SdDataSourcePebble extends SdDataSource {
 
         } catch (Exception ex) {
             Log.v(TAG, "updatePrefs() - Problem parsing preferences!");
-            mUtil.writeToSysLogFile("SdDataSourcePebble.updatePrefs() - ERROR "+ex.toString());
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.updatePrefs() - ERROR "+ex.toString());
             Toast toast = Toast.makeText(mContext, "Problem Parsing Preferences - Something won't work - Please go back to Settings and correct it!", Toast.LENGTH_SHORT);
             toast.show();
         }
@@ -359,133 +356,28 @@ public class SdDataSourcePebble extends SdDataSource {
      * Set this server to receive pebble data by registering it as
      * A PebbleDataReceiver
      */
-    private void startPebbleServer() {
+    private void startAndroidWearServer() {
         Log.v(TAG, "StartPebbleServer()");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.startPebbleServer()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleServer()");
         final Handler handler = new Handler();
-        msgDataHandler = new PebbleKit.PebbleDataReceiver(SD_UUID) {
-            @Override
-            public void receiveData(final Context context,
-                                    final int transactionId,
-                                    final PebbleDictionary data) {
-                Log.v(TAG, "Received message from Pebble - data type="
-                        + data.getUnsignedIntegerAsLong(KEY_DATA_TYPE));
-                // If we have a message, the app must be running
-                Log.v(TAG, "Setting mPebbleAppRunningCheck to true");
-                mPebbleAppRunningCheck = true;
-                PebbleKit.sendAckToPebble(context, transactionId);
-                //Log.v(TAG,"Message is: "+data.toJsonString());
-                if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
-                        == DATA_TYPE_RESULTS) {
-                    Log.v(TAG, "DATA_TYPE = Results");
-                    mSdData.dataTime.setToNow();
-                    Log.v(TAG, "mSdData.dataTime=" + mSdData.dataTime);
 
-                    mSdData.alarmState = data.getUnsignedIntegerAsLong(
-                            KEY_ALARMSTATE);
-                    mSdData.maxVal = data.getUnsignedIntegerAsLong(KEY_MAXVAL);
-                    mSdData.maxFreq = data.getUnsignedIntegerAsLong(KEY_MAXFREQ);
-                    mSdData.specPower = data.getUnsignedIntegerAsLong(KEY_SPECPOWER);
-                    mSdData.roiPower = data.getUnsignedIntegerAsLong(KEY_ROIPOWER);
-                    mSdData.alarmPhrase = "Unknown";
-                    mSdData.haveData = true;
-                    mSdDataReceiver.onSdDataReceived(mSdData);
-
-
-                    // Read the data that has been sent, and convert it into
-                    // an integer array.
-                    byte[] byteArr = data.getBytes(KEY_SPEC_DATA);
-                    if ((byteArr != null) && (byteArr.length != 0)) {
-                        IntBuffer intBuf = ByteBuffer.wrap(byteArr)
-                                .order(ByteOrder.LITTLE_ENDIAN)
-                                .asIntBuffer();
-                        int[] intArray = new int[intBuf.remaining()];
-                        intBuf.get(intArray);
-                        for (int i = 0; i < intArray.length; i++) {
-                            mSdData.simpleSpec[i] = intArray[i];
-                        }
-                    } else {
-                        Log.v(TAG, "***** zero length spectrum received - error!!!!");
-                    }
-                }
-
-                if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
-                        == DATA_TYPE_SETTINGS) {
-                    Log.v(TAG, "DATA_TYPE = Settings");
-                    try {
-                        mSdData.analysisPeriod = data.getUnsignedIntegerAsLong(KEY_SAMPLE_PERIOD);
-                        mSdData.alarmFreqMin = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MIN);
-                        mSdData.alarmFreqMax = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MAX);
-                        mSdData.nMin = data.getUnsignedIntegerAsLong(KEY_NMIN);
-                        mSdData.nMax = data.getUnsignedIntegerAsLong(KEY_NMAX);
-                        mSdData.warnTime = data.getUnsignedIntegerAsLong(KEY_WARN_TIME);
-                        mSdData.alarmTime = data.getUnsignedIntegerAsLong(KEY_ALARM_TIME);
-                        mSdData.alarmThresh = data.getUnsignedIntegerAsLong(KEY_ALARM_THRESH);
-                        mSdData.alarmRatioThresh = data.getUnsignedIntegerAsLong(KEY_ALARM_RATIO_THRESH);
-                        mSdData.batteryPc = data.getUnsignedIntegerAsLong(KEY_BATTERY_PC);
-                        mSdData.haveSettings = true;
-                    } catch (Exception ex) {
-                        mUtil.showToast("*** Error interpreting settings sent from watch - Please check you have "
-                                + "the latest version of the watch app installed by using the OpenSeizureDetector "
-                                + "menu to install the Watch App");
-                        mUtil.writeToSysLogFile("Error interpreting settings received from watch - wrong version "
-                                + "of watch app installed?");
-                    }
-                }
-                if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
-                        == DATA_TYPE_RAW) {
-                    Log.v(TAG, "DATA_TYPE = Raw");
-                    long numSamples;
-                    numSamples = data.getUnsignedIntegerAsLong(KEY_NUM_RAW_DATA);
-                    Log.v(TAG, "numSamples = " + numSamples);
-                    byte[] rawDataBytes = data.getBytes(KEY_RAW_DATA);
-                    for (int i = 0; i < rawDataBytes.length - 4; i += 4) { // 4 bytes per sample
-                        int x = (rawDataBytes[i]);
-                        //int y = (rawDataBytes[i+2] & 0xff) | (rawDataBytes[i+3] << 8);
-                        //int z = (rawDataBytes[i+4] & 0xff) | (rawDataBytes[i+5] << 8);
-                        //Log.v(TAG,"x="+x+", y="+y+", z="+z);
-                        Log.v(TAG,"x="+x);
-                        if (nRawData < MAX_RAW_DATA) {
-                            rawData[nRawData] = (int)Math.sqrt(x);
-                        } else {
-                            Log.i(TAG, "WARNING - rawData Buffer Full");
-                        }
-
-                    }
-
-
-                    //for (AccelData reading : AccelData.fromDataArray(rawDataBytes)) {
-                    //    if (nRawData < MAX_RAW_DATA) {
-                    //        rawData[nRawData] = reading.getMagnitude();
-                    //        nRawData++;
-                    //    } else {
-                    //        Log.i(TAG, "WARNING - rawData Buffer Full");
-                    //    }
-                   // }
-
-                }
-            }
-        };
-        PebbleKit.registerReceivedDataHandler(mContext, msgDataHandler);
-        // We struggle to connect to pebble time if app is already running,
-        // so stop app so we can re-connect to it.
-        //stopWatchApp();
+        // FIXME - Register to recieve messages from watch.
         startWatchApp();
     }
 
     /**
      * De-register this server from receiving pebble data
      */
-    public void stopPebbleServer() {
+    public void stopAndroidWearServer() {
         Log.v(TAG, "stopPebbleServer(): Stopping Pebble Server");
         Log.v(TAG, "stopPebbleServer(): msgDataHandler = " + msgDataHandler.toString());
-        mUtil.writeToSysLogFile("SdDataSourcePebble.stopPebbleServer()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stopAndroidWearServer()");
         try {
-            mContext.unregisterReceiver(msgDataHandler);
+            // FIXME - unregister messages  mContext.unregisterReceiver(msgDataHandler);
             stopWatchApp();
         } catch (Exception e) {
-            Log.v(TAG, "stopPebbleServer() - error " + e.toString());
-            mUtil.writeToSysLogFile("SdDataSourcePebble.stopPebbleServer() - error " + e.toString());
+            Log.v(TAG, "stopAndroidWearServer() - error " + e.toString());
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stopAndroidWearServer() - error " + e.toString());
         }
     }
 
@@ -494,9 +386,9 @@ public class SdDataSourcePebble extends SdDataSource {
      */
     public void startWatchApp() {
         Log.v(TAG, "startWatchApp() - closing app first");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.startWatchApp() - closing app first");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startWatchApp() - closing app first");
         // first close the watch app if it is running.
-        PebbleKit.closeAppOnPebble(mContext, SD_UUID);
+        //PebbleKit.closeAppOnPebble(mContext, SD_UUID);
         Log.v(TAG, "startWatchApp() - starting watch app after 5 seconds delay...");
 	// Wait 5 seconds then start the app.
         Timer appStartTimer = new Timer();
@@ -504,8 +396,9 @@ public class SdDataSourcePebble extends SdDataSource {
             @Override
             public void run() {
                 Log.v(TAG, "startWatchApp() - starting watch app...");
-                mUtil.writeToSysLogFile("SdDataSourcePebble.startWatchApp() - starting watch app");
-                PebbleKit.startAppOnPebble(mContext, SD_UUID);
+                mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startWatchApp() - starting watch app");
+                //PebbleKit.startAppOnPebble(mContext, SD_UUID);
+                // FIXME - send message to watch to start app.
             }
         }, 5000);
     }
@@ -515,39 +408,147 @@ public class SdDataSourcePebble extends SdDataSource {
      */
     public void stopWatchApp() {
         Log.v(TAG, "stopWatchApp()");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.stopWatchApp()");
-        PebbleKit.closeAppOnPebble(mContext, SD_UUID);
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stopWatchApp()");
+        //PebbleKit.closeAppOnPebble(mContext, SD_UUID);
+        // FIXME - send message to watch to close app.
+    }
+
+    // Receive a message from the watch.   FIXME - convert to Android Wear Message API.
+    public void receiveData(final Context context,
+                            final int transactionId,
+                            final Object data) {
+        // FIXME - make this work for android wear messages rather than PebbleKit Messages.
+        /*
+        Log.v(TAG, "Received message from Pebble - data type="
+                + data.getUnsignedIntegerAsLong(KEY_DATA_TYPE));
+        // If we have a message, the app must be running
+        Log.v(TAG, "Setting mPebbleAppRunningCheck to true");
+        mAWAppRunningCheck = true;
+        //PebbleKit.sendAckToPebble(context, transactionId);
+        //Log.v(TAG,"Message is: "+data.toJsonString());
+        if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
+                == DATA_TYPE_RESULTS) {
+            Log.v(TAG, "DATA_TYPE = Results");
+            mSdData.dataTime.setToNow();
+            Log.v(TAG, "mSdData.dataTime=" + mSdData.dataTime);
+
+            mSdData.alarmState = data.getUnsignedIntegerAsLong(
+                    KEY_ALARMSTATE);
+            mSdData.maxVal = data.getUnsignedIntegerAsLong(KEY_MAXVAL);
+            mSdData.maxFreq = data.getUnsignedIntegerAsLong(KEY_MAXFREQ);
+            mSdData.specPower = data.getUnsignedIntegerAsLong(KEY_SPECPOWER);
+            mSdData.roiPower = data.getUnsignedIntegerAsLong(KEY_ROIPOWER);
+            mSdData.alarmPhrase = "Unknown";
+            mSdData.haveData = true;
+            mSdDataReceiver.onSdDataReceived(mSdData);
+
+
+            // Read the data that has been sent, and convert it into
+            // an integer array.
+            byte[] byteArr = data.getBytes(KEY_SPEC_DATA);
+            if ((byteArr != null) && (byteArr.length != 0)) {
+                IntBuffer intBuf = ByteBuffer.wrap(byteArr)
+                        .order(ByteOrder.LITTLE_ENDIAN)
+                        .asIntBuffer();
+                int[] intArray = new int[intBuf.remaining()];
+                intBuf.get(intArray);
+                for (int i = 0; i < intArray.length; i++) {
+                    mSdData.simpleSpec[i] = intArray[i];
+                }
+            } else {
+                Log.v(TAG, "***** zero length spectrum received - error!!!!");
+            }
+        }
+
+        if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
+                == DATA_TYPE_SETTINGS) {
+            Log.v(TAG, "DATA_TYPE = Settings");
+            try {
+                mSdData.analysisPeriod = data.getUnsignedIntegerAsLong(KEY_SAMPLE_PERIOD);
+                mSdData.alarmFreqMin = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MIN);
+                mSdData.alarmFreqMax = data.getUnsignedIntegerAsLong(KEY_ALARM_FREQ_MAX);
+                mSdData.nMin = data.getUnsignedIntegerAsLong(KEY_NMIN);
+                mSdData.nMax = data.getUnsignedIntegerAsLong(KEY_NMAX);
+                mSdData.warnTime = data.getUnsignedIntegerAsLong(KEY_WARN_TIME);
+                mSdData.alarmTime = data.getUnsignedIntegerAsLong(KEY_ALARM_TIME);
+                mSdData.alarmThresh = data.getUnsignedIntegerAsLong(KEY_ALARM_THRESH);
+                mSdData.alarmRatioThresh = data.getUnsignedIntegerAsLong(KEY_ALARM_RATIO_THRESH);
+                mSdData.batteryPc = data.getUnsignedIntegerAsLong(KEY_BATTERY_PC);
+                mSdData.haveSettings = true;
+            } catch (Exception ex) {
+                mUtil.showToast("*** Error interpreting settings sent from watch - Please check you have "
+                        + "the latest version of the watch app installed by using the OpenSeizureDetector "
+                        + "menu to install the Watch App");
+                mUtil.writeToSysLogFile("Error interpreting settings received from watch - wrong version "
+                        + "of watch app installed?");
+            }
+        }
+        if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
+                == DATA_TYPE_RAW) {
+            Log.v(TAG, "DATA_TYPE = Raw");
+            long numSamples;
+            numSamples = data.getUnsignedIntegerAsLong(KEY_NUM_RAW_DATA);
+            Log.v(TAG, "numSamples = " + numSamples);
+            byte[] rawDataBytes = data.getBytes(KEY_RAW_DATA);
+            for (int i = 0; i < rawDataBytes.length - 4; i += 4) { // 4 bytes per sample
+                int x = (rawDataBytes[i]);
+                //int y = (rawDataBytes[i+2] & 0xff) | (rawDataBytes[i+3] << 8);
+                //int z = (rawDataBytes[i+4] & 0xff) | (rawDataBytes[i+5] << 8);
+                //Log.v(TAG,"x="+x+", y="+y+", z="+z);
+                Log.v(TAG,"x="+x);
+                if (nRawData < MAX_RAW_DATA) {
+                    rawData[nRawData] = (int)Math.sqrt(x);
+                } else {
+                    Log.i(TAG, "WARNING - rawData Buffer Full");
+                }
+
+            }
+
+
+            //for (AccelData reading : AccelData.fromDataArray(rawDataBytes)) {
+            //    if (nRawData < MAX_RAW_DATA) {
+            //        rawData[nRawData] = reading.getMagnitude();
+            //        nRawData++;
+            //    } else {
+            //        Log.i(TAG, "WARNING - rawData Buffer Full");
+            //    }
+            // }
+
+        }*/
     }
 
 
-    /**
-     * Send our latest settings to the watch, then request Pebble App to send
-     * us its latest settings so we can check it has been set up correctly..
-     * Will be received as a message by the receiveData handler
-     */
-    public void getPebbleSdSettings() {
-        Log.v(TAG, "getPebbleSdSettings() - sending required settings to pebble");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.getPebbleSdSettings()");
-        sendPebbleSdSettings();
+
+/**
+ * Send our latest settings to the watch, then request Pebble App to send
+ * us its latest settings so we can check it has been set up correctly..
+ * Will be received as a message by the receiveData handler
+ */
+    public void getAndroidWearSdSettings() {
+        Log.v(TAG, "getAndroidWearSdSettings() - sending required settings to watch");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.getAndroidWearSdSettings()");
+        sendAndroidWearSdSettings();
         //Log.v(TAG, "getPebbleSdSettings() - requesting settings from pebble");
-        //mUtil.writeToSysLogFile("SdDataSourcePebble.getPebbleSdSettings() - and request settings from pebble");
-        PebbleDictionary data = new PebbleDictionary();
-        data.addUint8(KEY_SETTINGS, (byte) 1);
-        PebbleKit.sendDataToPebble(
-                mContext,
-                SD_UUID,
-                data);
+        //mUtil.writeToSysLogFile("SdDataSourceAndroidWear.getPebbleSdSettings() - and request settings from pebble");
+        // FIXME - send settings to watch
+        //PebbleDictionary data = new PebbleDictionary();
+        //data.addUint8(KEY_SETTINGS, (byte) 1);
+        //PebbleKit.sendDataToPebble(
+        //        mContext,
+        //        SD_UUID,
+        //        data);
     }
 
     /**
      * Send the pebble watch settings that are stored as class member
      * variables to the watch.
      */
-    public void sendPebbleSdSettings() {
-        Log.v(TAG, "sendPebblSdSettings() - preparing settings dictionary.. mSampleFreq=" + mSampleFreq);
-        mUtil.writeToSysLogFile("SdDataSourcePebble.sendPebbleSdSettings()");
+    public void sendAndroidWearSdSettings() {
+        Log.v(TAG, "sendAndroidWearSdSettings() - preparing settings dictionary.. mSampleFreq=" + mSampleFreq);
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.sendAndroidWearSdSettings()");
 
         // Watch Settings
+        /*
         final PebbleDictionary setDict = new PebbleDictionary();
         setDict.addInt16(KEY_DEBUG, mDebug);
         setDict.addInt16(KEY_DISPLAY_SPECTRUM, mDisplaySpectrum);
@@ -574,6 +575,7 @@ public class SdDataSourcePebble extends SdDataSource {
         // Send Watch Settings to Pebble
         Log.v(TAG, "sendPebbleSdSettings() - setDict = " + setDict.toJsonString());
         PebbleKit.sendDataToPebble(mContext, SD_UUID, setDict);
+        */
     }
 
 
@@ -646,58 +648,60 @@ public class SdDataSourcePebble extends SdDataSource {
     }
 
     /**
-     * Request Pebble App to send us its latest data.
+     * Request Android Wear App to send us its latest data.
      * Will be received as a message by the receiveData handler
      */
-    public void getPebbleData() {
-        Log.v(TAG, "getPebbleData() - requesting data from pebble");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.getPebbleData() - requesting data from pebble");
-        PebbleDictionary data = new PebbleDictionary();
-        data.addUint8(KEY_DATA_TYPE, (byte) 1);
-        PebbleKit.sendDataToPebble(
-                mContext,
-                SD_UUID,
-                data);
+    public void getAndroidWearData() {
+        Log.v(TAG, "getAndroidWearData() - requesting data from watch");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.getAndroidWearData() - requesting data from watch");
+        // FIXME - send message to watch.
+        //PebbleDictionary data = new PebbleDictionary();
+        //data.addUint8(KEY_DATA_TYPE, (byte) 1);
+        //PebbleKit.sendDataToPebble(
+        //        mContext,
+        //        SD_UUID,
+        //        data);
     }
 
 
     /**
-     * Checks the status of the connection to the pebble watch,
+     * Checks the status of the connection to the watch,
      * and sets class variables for use by other functions.
      * If the watch app is not running, it attempts to re-start it.
      */
-    public void getPebbleStatus() {
+    public void getAndroidWearStatus() {
         Time tnow = new Time(Time.getCurrentTimezone());
         long tdiff;
         tnow.setToNow();
         // get time since the last data was received from the Pebble watch.
-        tdiff = (tnow.toMillis(false) - mPebbleStatusTime.toMillis(false));
-        Log.v(TAG, "getPebbleStatus() - mPebbleAppRunningCheck=" + mPebbleAppRunningCheck + " tdiff=" + tdiff);
+        tdiff = (tnow.toMillis(false) - mAWStatusTime.toMillis(false));
+        Log.v(TAG, "getAndroidWearStatus() - mAWAppRunningCheck=" + mAWAppRunningCheck + " tdiff=" + tdiff);
         // Check we are actually connected to the pebble.
-        mSdData.watchConnected = PebbleKit.isWatchConnected(mContext);
-        if (!mSdData.watchConnected) mPebbleAppRunningCheck = false;
+        //mSdData.pebbleConnected = PebbleKit.isWatchConnected(mContext);
+        // FIXME - check the android wear watch is connected.
+        if (!mSdData.watchConnected) mAWAppRunningCheck = false;
         // And is the pebble_sd app running?
         // set mPebbleAppRunningCheck has been false for more than 10 seconds
         // the app is not talking to us
         // mPebbleAppRunningCheck is set to true in the receiveData handler.
-        if (!mPebbleAppRunningCheck &&
+        if (!mAWAppRunningCheck &&
                 (tdiff > (mDataUpdatePeriod + mAppRestartTimeout) * 1000)) {
-            Log.v(TAG, "getPebbleStatus() - tdiff = " + tdiff);
+            Log.v(TAG, "getAndroidWearStatus() - tdiff = " + tdiff);
             mSdData.watchAppRunning = false;
-            //Log.v(TAG, "getPebbleStatus() - Pebble App Not Running - Attempting to Re-Start");
-            //mUtil.writeToSysLogFile("SdDataSourcePebble.getPebbleStatus() - Pebble App not Running - Attempting to Re-Start");
+            //Log.v(TAG, "getAndroidWearStatus() - Pebble App Not Running - Attempting to Re-Start");
+            //mUtil.writeToSysLogFile("SdDataSourceAndroidWear.getAndroidWearStatus() - Pebble App not Running - Attempting to Re-Start");
             //startWatchApp();
             //mPebbleStatusTime = tnow;  // set status time to now so we do not re-start app repeatedly.
             //getPebbleSdSettings();
             // Only make audible warning beep if we have not received data for more than mFaultTimerPeriod seconds.
             if (tdiff > (mDataUpdatePeriod + mFaultTimerPeriod) * 1000) {
-                Log.v(TAG, "getPebbleStatus() - Pebble App Not Running - Attempting to Re-Start");
-                mUtil.writeToSysLogFile("SdDataSourcePebble.getPebbleStatus() - Pebble App not Running - Attempting to Re-Start");
+                Log.v(TAG, "getAndroidWearStatus() - Pebble App Not Running - Attempting to Re-Start");
+                mUtil.writeToSysLogFile("SdDataSourceAndroidWear.getAndroidWearStatus() - Pebble App not Running - Attempting to Re-Start");
                 startWatchApp();
-                mPebbleStatusTime.setToNow();
+                mAWStatusTime.setToNow();
                 mSdDataReceiver.onSdDataFault(mSdData);
             } else {
-                Log.v(TAG, "getPebbleStatus() - Waiting for mFaultTimerPeriod before issuing audible warning...");
+                Log.v(TAG, "getAndroidWearStatus() - Waiting for mFaultTimerPeriod before issuing audible warning...");
             }
         } else {
             mSdData.watchAppRunning = true;
@@ -705,17 +709,16 @@ public class SdDataSourcePebble extends SdDataSource {
 
         // if we have confirmation that the app is running, reset the
         // status time to now and initiate another check.
-        if (mPebbleAppRunningCheck) {
-            mPebbleAppRunningCheck = false;
-            mPebbleStatusTime.setToNow();
+        if (mAWAppRunningCheck) {
+            mAWAppRunningCheck = false;
+            mAWStatusTime.setToNow();
         }
 
         if (!mSdData.haveSettings) {
-            Log.v(TAG, "getPebbleStatus() - no settings received yet - requesting");
-            getPebbleSdSettings();
-            getPebbleData();
+            Log.v(TAG, "getAndroidWearStatus() - no settings received yet - requesting");
+            getAndroidWearSdSettings();
+            getAndroidWearData();
         }
-
         if (mPebbleSdMode == SD_MODE_RAW) {
             analyseRawData();
         }
@@ -741,8 +744,8 @@ public class SdDataSourcePebble extends SdDataSource {
      */
     @Override
     public void installWatchApp() {
-        Log.v(TAG, "SdDataSourcePebble.installWatchApp()");
-        mUtil.writeToSysLogFile("SdDataSourcePebble.installWatchApp()");
+        Log.v(TAG, "SdDataSourceAndroidWear.installWatchApp()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.installWatchApp()");
         final String WATCHAPP_FILENAME = "pebble_sd.pbw";
 
         try {
@@ -762,7 +765,7 @@ public class SdDataSourcePebble extends SdDataSource {
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             mContext.startActivity(intent);
         } catch (IOException e) {
-            mUtil.writeToSysLogFile("SdDataSourcePebble.installWatchApp() - app install failed"+e.toString());
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.installWatchApp() - app install failed"+e.toString());
             Toast.makeText(mContext, "App install failed: " + e.getLocalizedMessage(), Toast.LENGTH_LONG).show();
         }
 
@@ -786,7 +789,7 @@ public class SdDataSourcePebble extends SdDataSource {
      */
     @Override
     public void startPebbleApp() {
-        mUtil.writeToSysLogFile("SdDataSourcePebble.startPebbleApp()");
+        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp()");
         // first try to launch the original pebble app
         Intent pebbleAppIntent;
         PackageManager pm = mContext.getPackageManager();
@@ -796,18 +799,18 @@ public class SdDataSourcePebble extends SdDataSource {
         } catch (Exception ex1) {
             // and if original pebble app fails, try Pebble Time app...
             Log.v(TAG, "exception starting original pebble App - trying pebble time..." + ex1.toString());
-            mUtil.writeToSysLogFile("SdDataSourcePebble.startPebbleApp() - Error starting original pebble app - trying Pebble Time App instead");
+            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp() - Error starting original pebble app - trying Pebble Time App instead");
             try {
                 pebbleAppIntent = pm.getLaunchIntentForPackage("com.getpebble.android.basalt");
                 mContext.startActivity(pebbleAppIntent);
             } catch (Exception ex2) {
                 // and if that fails, open play store so the user can install it:
                 Log.v(TAG, "exception starting Pebble Time App." + ex2.toString());
-                mUtil.writeToSysLogFile("SdDataSourcePebble.startPebbleApp() - Error starting Pebble Time App - Is it installed?");
+                mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp() - Error starting Pebble Time App - Is it installed?");
                 this.showToast("Error Launching Pebble or Pebble Time App - Please make sure it is installed...");
                 final String appPackageName = "com.getpebble.android.basalt";
                 try {
-                    mUtil.writeToSysLogFile("SdDataSourcePebble.startPebbleApp() - Opening Play Store to install Pebble App");
+                    mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp() - Opening Play Store to install Pebble App");
                     // try using play store app.
                     mContext.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + appPackageName)));
                 } catch (android.content.ActivityNotFoundException anfe) {
