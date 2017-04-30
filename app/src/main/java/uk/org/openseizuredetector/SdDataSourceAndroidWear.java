@@ -35,6 +35,12 @@ import android.util.Log;
 import android.widget.Toast;
 
 
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.Node;
+import com.google.android.gms.wearable.NodeApi;
+import com.google.android.gms.wearable.Wearable;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -143,6 +149,8 @@ public class SdDataSourceAndroidWear extends SdDataSource {
     private double[] rawData = new double[MAX_RAW_DATA];
     private int nRawData = 0;
 
+    private GoogleApiClient mApiClient;
+
     public SdDataSourceAndroidWear(Context context, Handler handler,
                                    SdDataReceiver sdDataReceiver) {
         super(context, handler, sdDataReceiver);
@@ -151,6 +159,13 @@ public class SdDataSourceAndroidWear extends SdDataSource {
         // FIXME - we are using the same preferences as the Pebble Datasource here.
         PreferenceManager.setDefaultValues(mContext,
                 R.xml.pebble_datasource_prefs, true);
+
+        // Initialise the Google API Client so we can use Android Wear messages.
+
+        mApiClient = new GoogleApiClient.Builder(mContext)
+                .addApi(Wearable.API)
+                .build();
+        mApiClient.connect();
     }
 
 
@@ -234,6 +249,7 @@ public class SdDataSourceAndroidWear extends SdDataSource {
             Log.v(TAG, "Error in stop() - " + e.toString());
             mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop() - error - "+e.toString());
         }
+        mApiClient.disconnect();
     }
 
     /**
@@ -677,6 +693,12 @@ public class SdDataSourceAndroidWear extends SdDataSource {
         tdiff = (tnow.toMillis(false) - mAWStatusTime.toMillis(false));
         Log.v(TAG, "getAndroidWearStatus() - mAWAppRunningCheck=" + mAWAppRunningCheck + " tdiff=" + tdiff);
         // Check we are actually connected to the pebble.
+        NodeApi.GetConnectedNodesResult nodes = Wearable.NodeApi.getConnectedNodes( mApiClient ).await();
+        for(Node node : nodes.getNodes()) {
+            Log.v(TAG,"geAndroidWearStatus() - node = "+node.getDisplayName());
+            //MessageApi.SendMessageResult result = Wearable.MessageApi.sendMessage(
+            //        mApiClient, node.getId(), path, text.getBytes() ).await();
+        }
         //mSdData.pebbleConnected = PebbleKit.isWatchConnected(mContext);
         // FIXME - check the android wear watch is connected.
         if (!mSdData.watchConnected) mAWAppRunningCheck = false;
