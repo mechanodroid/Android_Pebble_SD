@@ -30,13 +30,16 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Handler;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 import android.text.format.Time;
 import android.util.Log;
 import android.widget.Toast;
 
 
+import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.wearable.MessageApi;
+import com.google.android.gms.wearable.MessageEvent;
 import com.google.android.gms.wearable.Node;
 import com.google.android.gms.wearable.NodeApi;
 import com.google.android.gms.wearable.Wearable;
@@ -57,7 +60,8 @@ import java.util.UUID;
 /**
  * AndroidWear seizure detector data source.  
  */
-public class SdDataSourceAndroidWear extends SdDataSource {
+public class SdDataSourceAndroidWear extends SdDataSource
+        implements MessageApi.MessageListener, GoogleApiClient.OnConnectionFailedListener {
     private Handler mHandler = new Handler();
     private Timer mSettingsTimer;
     private Timer mStatusTimer;
@@ -161,7 +165,6 @@ public class SdDataSourceAndroidWear extends SdDataSource {
                 R.xml.pebble_datasource_prefs, true);
 
         // Initialise the Google API Client so we can use Android Wear messages.
-
         mApiClient = new GoogleApiClient.Builder(mContext)
                 .addApi(Wearable.API)
                 .build();
@@ -177,6 +180,9 @@ public class SdDataSourceAndroidWear extends SdDataSource {
         Log.v(TAG, "start()");
         mUtil.writeToSysLogFile("SdDataSourceAndroidWear.start()");
         updatePrefs();
+        // Register to recieve messages from watch.
+        Log.v(TAG,"start() - Registering for MessageApi messages");
+        Wearable.MessageApi.addListener(mApiClient,this);
         startWatchApp();
         // Start timer to check status of pebble regularly.
         mAWStatusTime = new Time(Time.getCurrentTimezone());
@@ -249,7 +255,6 @@ public class SdDataSourceAndroidWear extends SdDataSource {
             Log.v(TAG, "Error in stop() - " + e.toString());
             mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stop() - error - "+e.toString());
         }
-        mApiClient.disconnect();
     }
 
     /**
@@ -369,27 +374,15 @@ public class SdDataSourceAndroidWear extends SdDataSource {
 
 
     /**
-     * Set this server to receive pebble data by registering it as
-     * A PebbleDataReceiver
-     */
-    private void startAndroidWearServer() {
-        Log.v(TAG, "StartPebbleServer()");
-        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleServer()");
-        final Handler handler = new Handler();
-
-        // FIXME - Register to recieve messages from watch.
-        startWatchApp();
-    }
-
-    /**
      * De-register this server from receiving pebble data
      */
     public void stopAndroidWearServer() {
-        Log.v(TAG, "stopPebbleServer(): Stopping Pebble Server");
-        Log.v(TAG, "stopPebbleServer(): msgDataHandler = " + msgDataHandler.toString());
+        Log.v(TAG, "stopAndroidWearServer(): Stopping AndroidWear Server");
         mUtil.writeToSysLogFile("SdDataSourceAndroidWear.stopAndroidWearServer()");
         try {
-            // FIXME - unregister messages  mContext.unregisterReceiver(msgDataHandler);
+            // Unregister messages  mContext.unregisterReceiver(msgDataHandler);
+            Wearable.MessageApi.removeListener(mApiClient,this);
+            // stop the seizure detector app on the watch
             stopWatchApp();
         } catch (Exception e) {
             Log.v(TAG, "stopAndroidWearServer() - error " + e.toString());
@@ -398,7 +391,7 @@ public class SdDataSourceAndroidWear extends SdDataSource {
     }
 
     /**
-     * Attempt to start the pebble_sd watch app on the pebble watch.
+     * Attempt to start the watch app on the watch.
      */
     public void startWatchApp() {
         Log.v(TAG, "startWatchApp() - closing app first");
@@ -429,10 +422,18 @@ public class SdDataSourceAndroidWear extends SdDataSource {
         // FIXME - send message to watch to close app.
     }
 
-    // Receive a message from the watch.   FIXME - convert to Android Wear Message API.
-    public void receiveData(final Context context,
-                            final int transactionId,
-                            final Object data) {
+    // GoogleAPIs Connection Failed Listener
+
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        Log.v(TAG,"onConnectionFailed"+connectionResult.getErrorMessage());
+    }
+
+    // Receive a message from the watch.
+    @Override
+    public void onMessageReceived(MessageEvent messageEvent) {
+        Log.v(TAG,"onMessageReceived - messageEvent="+messageEvent.toString());
         // FIXME - make this work for android wear messages rather than PebbleKit Messages.
         /*
         Log.v(TAG, "Received message from Pebble - data type="
@@ -758,92 +759,6 @@ public class SdDataSourceAndroidWear extends SdDataSource {
         // FIXME - rawData should really be a circular buffer.
         nRawData = 0;
     }
-
-    /**
-     * Install the wach app that is bundled in the 'assets' folder of this
-     * phone app.
-     * from https://github.com/pebble-examples/pebblekit-android-example/blob/master/android/Eclipse/src/com/getpebble/pebblekitexample/MainActivity.java#L148
-     */
-    @Override
-    public void installWatchApp() {
-        Log.v(TAG, "SdDataSourceAndroidWear.installWatchApp()");
-        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.installWatchApp()");
-        final String WATCHAPP_FILENAME = "pebble_sd.pbw";
-
-        try {
-            // Read .pbw from assets/
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            File file = new File(mContext.getExternalFilesDir(null), WATCHAPP_FILENAME);
-            InputStream is = mContext.getResources().getAssets().open(WATCHAPP_FILENAME);
-            OutputStream os = new FileOutputStream(file);
-            byte[] pbw = new byte[is.available()];
-            is.read(pbw);
-            os.write(pbw);
-            is.close();
-            os.close();
-
-            // Install via Pebble Android app
-            intent.setDataAndType(Uri.fromFile(file), "application/pbw");
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            mContext.startActivity(intent);
-        } catch (IOException e) {
-            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.installWatchApp() - app install failed"+e.toString());
-            Toast.makeText(mContext, "App install failed: " + e.getLocalizedMessage(), Toast.LENGTH_LONG).show();
-        }
-
-    }
-
-    /**
-     * Install the OpenSeizureDetector watch app onto the watch from Pebble AppStore
-     * based on https://forums.getpebble.com/discussion/13128/install-watch-app-pebble-store-from-android-companion-app
-     */
-    public void installWatchAppFromPebbleAppStore() {
-        Intent myIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("pebble://appstore/54d28a43e4d94c043f000008"));
-        myIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
-        mContext.startActivity(myIntent);
-    }
-
-
-
-
-    /**
-     * Open Pebble or Pebble Time app.  If it is not installed, open Play store so the user can install it.
-     */
-    @Override
-    public void startPebbleApp() {
-        mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp()");
-        // first try to launch the original pebble app
-        Intent pebbleAppIntent;
-        PackageManager pm = mContext.getPackageManager();
-        try {
-            pebbleAppIntent = pm.getLaunchIntentForPackage("com.getpebble.android");
-            mContext.startActivity(pebbleAppIntent);
-        } catch (Exception ex1) {
-            // and if original pebble app fails, try Pebble Time app...
-            Log.v(TAG, "exception starting original pebble App - trying pebble time..." + ex1.toString());
-            mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp() - Error starting original pebble app - trying Pebble Time App instead");
-            try {
-                pebbleAppIntent = pm.getLaunchIntentForPackage("com.getpebble.android.basalt");
-                mContext.startActivity(pebbleAppIntent);
-            } catch (Exception ex2) {
-                // and if that fails, open play store so the user can install it:
-                Log.v(TAG, "exception starting Pebble Time App." + ex2.toString());
-                mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp() - Error starting Pebble Time App - Is it installed?");
-                this.showToast("Error Launching Pebble or Pebble Time App - Please make sure it is installed...");
-                final String appPackageName = "com.getpebble.android.basalt";
-                try {
-                    mUtil.writeToSysLogFile("SdDataSourceAndroidWear.startPebbleApp() - Opening Play Store to install Pebble App");
-                    // try using play store app.
-                    mContext.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + appPackageName)));
-                } catch (android.content.ActivityNotFoundException anfe) {
-                    // and if play store app is not installed, use browser to open app page.
-                    mContext.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + appPackageName)));
-                }
-            }
-        }
-
-    }
-
 
 
 }
