@@ -693,20 +693,20 @@ public class SdDataSourceAndroidWear extends SdDataSource
         // get time since the last data was received from the Pebble watch.
         tdiff = (tnow.toMillis(false) - mAWStatusTime.toMillis(false));
         Log.v(TAG, "getAndroidWearStatus() - mAWAppRunningCheck=" + mAWAppRunningCheck + " tdiff=" + tdiff);
-        // Check we are actually connected to the pebble.
+        // Check we are actually connected to a wearable device.
+        // FIXME - this does not look for a specific device - as long as one or more weareables is connected,
+        //          we set watchConnected to true.
+        mSdData.watchConnected = false;
         NodeApi.GetConnectedNodesResult nodes = Wearable.NodeApi.getConnectedNodes( mApiClient ).await();
         for(Node node : nodes.getNodes()) {
-            Log.v(TAG,"geAndroidWearStatus() - node = "+node.getDisplayName());
-            //MessageApi.SendMessageResult result = Wearable.MessageApi.sendMessage(
-            //        mApiClient, node.getId(), path, text.getBytes() ).await();
+            Log.v(TAG,"geAndroidWearStatus() - node = "+node.getDisplayName()+", id="+node.getId()+", nearby="+node.isNearby());
+            if (node.isNearby()) mSdData.watchConnected = true;
         }
-        //mSdData.pebbleConnected = PebbleKit.isWatchConnected(mContext);
-        // FIXME - check the android wear watch is connected.
         if (!mSdData.watchConnected) mAWAppRunningCheck = false;
-        // And is the pebble_sd app running?
-        // set mPebbleAppRunningCheck has been false for more than 10 seconds
+        // And is the watch app running?
+        // set mAWAppRunningCheck has been false for more than 10 seconds
         // the app is not talking to us
-        // mPebbleAppRunningCheck is set to true in the receiveData handler.
+        // mAWAppRunningCheck is set to true in the receiveData handler.
         if (!mAWAppRunningCheck &&
                 (tdiff > (mDataUpdatePeriod + mAppRestartTimeout) * 1000)) {
             Log.v(TAG, "getAndroidWearStatus() - tdiff = " + tdiff);
