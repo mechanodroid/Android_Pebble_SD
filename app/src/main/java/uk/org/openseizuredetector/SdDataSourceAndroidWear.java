@@ -433,49 +433,26 @@ public class SdDataSourceAndroidWear extends SdDataSource
     // Receive a message from the watch.
     @Override
     public void onMessageReceived(MessageEvent messageEvent) {
-        Log.v(TAG,"onMessageReceived - messageEvent="+messageEvent.toString());
-        // FIXME - make this work for android wear messages rather than PebbleKit Messages.
-        /*
-        Log.v(TAG, "Received message from Pebble - data type="
-                + data.getUnsignedIntegerAsLong(KEY_DATA_TYPE));
+        String messagePath = messageEvent.getPath();
+        String dataJSON = new String(messageEvent.getData());
+        Log.v(TAG,"onMessageReceived - Path="+messagePath+", Data="+dataJSON);
         // If we have a message, the app must be running
         Log.v(TAG, "Setting mPebbleAppRunningCheck to true");
         mAWAppRunningCheck = true;
-        //PebbleKit.sendAckToPebble(context, transactionId);
-        //Log.v(TAG,"Message is: "+data.toJsonString());
-        if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
-                == DATA_TYPE_RESULTS) {
-            Log.v(TAG, "DATA_TYPE = Results");
+
+        if (messagePath.equals("/data")) {
+            Log.v(TAG,"onMessageReceived - parsing /data message");
+            mSdData.fromJSON(dataJSON);
             mSdData.dataTime.setToNow();
-            Log.v(TAG, "mSdData.dataTime=" + mSdData.dataTime);
-
-            mSdData.alarmState = data.getUnsignedIntegerAsLong(
-                    KEY_ALARMSTATE);
-            mSdData.maxVal = data.getUnsignedIntegerAsLong(KEY_MAXVAL);
-            mSdData.maxFreq = data.getUnsignedIntegerAsLong(KEY_MAXFREQ);
-            mSdData.specPower = data.getUnsignedIntegerAsLong(KEY_SPECPOWER);
-            mSdData.roiPower = data.getUnsignedIntegerAsLong(KEY_ROIPOWER);
-            mSdData.alarmPhrase = "Unknown";
+            mSdData.watchConnected = true;  // it must be for us to receive a message!
+            mSdData.watchAppRunning = true; // it must be for us to receive a message!
             mSdData.haveData = true;
+            mSdData.haveSettings = true;  // because android wear sends settings and data in the same message.
             mSdDataReceiver.onSdDataReceived(mSdData);
-
-
-            // Read the data that has been sent, and convert it into
-            // an integer array.
-            byte[] byteArr = data.getBytes(KEY_SPEC_DATA);
-            if ((byteArr != null) && (byteArr.length != 0)) {
-                IntBuffer intBuf = ByteBuffer.wrap(byteArr)
-                        .order(ByteOrder.LITTLE_ENDIAN)
-                        .asIntBuffer();
-                int[] intArray = new int[intBuf.remaining()];
-                intBuf.get(intArray);
-                for (int i = 0; i < intArray.length; i++) {
-                    mSdData.simpleSpec[i] = intArray[i];
-                }
-            } else {
-                Log.v(TAG, "***** zero length spectrum received - error!!!!");
-            }
         }
+        /*
+
+
 
         if (data.getUnsignedIntegerAsLong(KEY_DATA_TYPE)
                 == DATA_TYPE_SETTINGS) {

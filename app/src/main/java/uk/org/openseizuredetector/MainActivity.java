@@ -428,7 +428,7 @@ public class MainActivity extends Activity {
                         tv.setTextColor(warnTextColour);
                     }
                     tv = (TextView) findViewById(R.id.battTv);
-                    tv.setText("Pebble Battery = " + String.valueOf(mConnection.mSdServer.mSdData.batteryPc) + "%");
+                    tv.setText("Watch Battery = " + String.valueOf(mConnection.mSdServer.mSdData.batteryPc) + "%");
                     if (mConnection.mSdServer.mSdData.batteryPc <= 20) {
                         tv.setBackgroundColor(alarmColour);
                         tv.setTextColor(alarmTextColour);
