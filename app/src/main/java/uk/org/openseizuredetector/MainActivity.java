@@ -470,6 +470,7 @@ public class MainActivity extends Activity {
                     ((TextView) findViewById(R.id.spectrumTv)).setText("Spectrum Ratio = " + specRatio +
                             " (threshold = " + mConnection.mSdServer.mSdData.alarmRatioThresh + ")");
 
+
                     ProgressBar pb;
                     Drawable pbDrawable;
                     pb = ((ProgressBar) findViewById(R.id.powerProgressBar));

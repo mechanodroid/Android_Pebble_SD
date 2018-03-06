@@ -284,7 +284,7 @@ public class StartupActivity extends Activity {
             tv = (TextView) findViewById(R.id.textItem3);
             pb = (ProgressBar) findViewById(R.id.progressBar3);
             if (mConnection.pebbleConnected()) {
-                tv.setText("Pebble Watch Connected OK");
+                tv.setText("Android Wear Watch Connected OK");
                 tv.setBackgroundColor(okColour);
                 tv.setTextColor(okTextColour);
                 pb.setIndeterminateDrawable(getResources().getDrawable(R.drawable.start_server));
@@ -377,7 +377,7 @@ public class StartupActivity extends Activity {
                     allOk = false;
                 }
             } else {
-                tv.setText("Pebble Android App Not Required");
+                tv.setText("Using Android Wear 2.0");
                 tv.setBackgroundColor(okColour);
                 tv.setTextColor(okTextColour);
                 pb.setIndeterminateDrawable(getResources().getDrawable(R.drawable.start_server));

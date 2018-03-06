@@ -417,7 +417,7 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
             showNotification(0);
         }
         // Handle warning alarm state
-        if (sdData.alarmState == 1) {
+        if (sdData.alarmState == 1) { //not used
             if ((!mLatchAlarms) ||
                     (mLatchAlarms &&
                             (!mSdData.alarmStanding && !mSdData.fallAlarmStanding))) {
@@ -435,7 +435,7 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
             warningBeep();
             showNotification(1);
         }
-        // respond to normal alarms (2) and manual alarms (5)
+        // respond to normal alarms (2) and manual alarms (5) and warnings too (1)
         if ((sdData.alarmState == 2) || (sdData.alarmState == 5)) {
             sdData.alarmPhrase = "ALARM";
             sdData.alarmStanding = true;
@@ -528,7 +528,7 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
             mToneGenerator.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, duration);
             Log.v(TAG, "beep()");
         } else {
-            mUtil.showToast("Warming mToneGenerator is null - not beeping!!!");
+            //mUtil.showToast("Warming mToneGenerator is null - not beeping!!!");
             Log.v(TAG, "beep() - Warming mToneGenerator is null - not beeping!!!");
             mUtil.writeToSysLogFile("SdServer.beep() - mToneGenerator is null???");
         }
@@ -600,6 +600,25 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
      */
     public void sendSMSAlarm() {
         if (mSMSAlarm) {
+
+            // Send SMS Alarm once a minute
+            Time tnow = new Time(Time.getCurrentTimezone());
+            tnow.setToNow();
+            // limit SMS alarms to one per minute
+            if ((tnow.toMillis(false)
+                    - mSMSTime.toMillis(false))
+                    < 60000) {
+                return;
+
+            }
+            // Make alarm beep tone
+            alarmBeep();
+            showNotification(2);
+
+            mSMSTime = tnow;
+
+            startLatchTimer();
+
             mLocationFinder.getLocation(this);
             Location loc = mLocationFinder.getLastLocation();
             if (loc != null) {
@@ -611,8 +630,6 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
             }
             Log.v(TAG, "sendSMSAlarm() - Sending to " + mSMSNumbers.length + " Numbers");
             mUtil.writeToSysLogFile("SdServer.sendSMSAlarm()");
-            Time tnow = new Time(Time.getCurrentTimezone());
-            tnow.setToNow();
             String dateStr = tnow.format("%H:%M:%S %d/%m/%Y");
             SmsManager sm = SmsManager.getDefault();
             for (int i = 0; i < mSMSNumbers.length; i++) {
