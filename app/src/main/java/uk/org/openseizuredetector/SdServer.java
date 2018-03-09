@@ -113,6 +113,7 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
     private String[] mSMSNumbers;
     private String mSMSMsgStr = "default SMS Message";
     public Time mSMSTime = null;  // last time we sent an SMS Alarm (limited to one per minute)
+    public Time mSMSOkTime = null;
     private boolean mLogAlarms = true;
     private boolean mLogData = false;
     private File mOutFile;
@@ -233,6 +234,7 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
         // Record last time we sent an SMS so we can limit rate of SMS
         // sending to one per minute.
         mSMSTime = new Time(Time.getCurrentTimezone());
+        mSMSOkTime = new Time(Time.getCurrentTimezone());
 
 
         // Start timer to log data regularly..
@@ -399,6 +401,14 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
      */
     public void onSdDataReceived(SdData sdData) {
         Log.v(TAG, "onSdDataReceived() - " + sdData.toString());
+        // Handle I'm OK from watch buttons.
+        if (sdData.alarmState == 10) {
+            sdData.alarmPhrase = "OK";
+            sdData.alarmStanding = false;
+            sdData.fallAlarmStanding = false;
+            showNotification(0);
+            sendSMSOk();
+        }
         if (sdData.alarmState == 0) {
             if ((!mLatchAlarms) ||
                     (mLatchAlarms &&
@@ -592,7 +602,27 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
         }
     }
 
+    public void sendSMSOk() {
+        // Send SMS Alarm once a minute
+        Time tnow = new Time(Time.getCurrentTimezone());
+        tnow.setToNow();
+        // limit SMS alarms to one per minute
+        if ((tnow.toMillis(false)
+        - mSMSOkTime.toMillis(false))
+        < 60000) {
+            return;
+        }
+        mSMSOkTime = tnow;
+        Log.v(TAG, "sendOk() - Sending to " + mSMSNumbers.length + " Numbers");
+        mUtil.writeToSysLogFile("SdServer.sendOk()");
 
+        String dateStr = tnow.format("%H:%M:%S %d/%m/%Y");
+        SmsManager sm = SmsManager.getDefault();
+        for (int i = 0; i < mSMSNumbers.length; i++) {
+            Log.v(TAG, "sendSMSOk() - Sending to " + mSMSNumbers[i]);
+            sm.sendTextMessage(mSMSNumbers[i], null, " I am OK. " + " - " + dateStr, null, null);
+        }
+    }
     /**
      * Sends SMS Alarms to the telephone numbers specified in mSMSNumbers[]
      * Attempts to find a better location, and sends a second SMS after location search
