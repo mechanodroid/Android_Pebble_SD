@@ -608,8 +608,8 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
         tnow.setToNow();
         // limit SMS alarms to one per minute
         if ((tnow.toMillis(false)
-        - mSMSOkTime.toMillis(false))
-        < 60000) {
+            - mSMSOkTime.toMillis(false))
+            < 60000) {
             return;
         }
         mSMSOkTime = tnow;

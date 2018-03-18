@@ -117,6 +117,8 @@ public class SdDataSourceAndroidWear extends SdDataSource
     private int KEY_VERSION_MAJOR = 35;
     private int KEY_VERSION_MINOR = 36;
     private int KEY_FREQ_CUTOFF = 37;
+    //private int KEY_HEARTAVG = 38;
+    //private int KEY_HEARTCUR = 39;
 
     // Values of the KEY_DATA_TYPE entry in a message
     private int DATA_TYPE_RESULTS = 1;   // Analysis Results

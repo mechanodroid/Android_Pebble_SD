@@ -404,6 +404,17 @@ public class MainActivity extends Activity {
                     tv.setText(mConnection.mSdServer.mSdData.dataTime.format("%H:%M:%S"));
                     tv.setBackgroundColor(okColour);
                     tv.setTextColor(okTextColour);
+                    // Set Heart Rate values
+                    /*
+                    tv = (TextView) findViewById(R.id.heartAvg);
+                    tv.setText(String.valueOf(mConnection.mSdServer.mSdData.avgHeartRate));
+                    tv.setBackgroundColor(okColour);
+                    tv.setTextColor(okTextColour);
+                    tv = (TextView) findViewById(R.id.heartCur);
+                    tv.setText(String.valueOf(mConnection.mSdServer.mSdData.curHeartRate));
+                    tv.setBackgroundColor(okColour);
+                    tv.setTextColor(okTextColour);*/
+
 
                     // Pebble Connected Phrase
                     tv = (TextView) findViewById(R.id.pebbleTv);
@@ -428,16 +439,23 @@ public class MainActivity extends Activity {
                         tv.setTextColor(warnTextColour);
                     }
                     tv = (TextView) findViewById(R.id.battTv);
-                    tv.setText("Watch Battery = " + String.valueOf(mConnection.mSdServer.mSdData.batteryPc) + "%");
-                    if (mConnection.mSdServer.mSdData.batteryPc <= 20) {
-                        tv.setBackgroundColor(alarmColour);
-                        tv.setTextColor(alarmTextColour);
-                    }
-                    if (mConnection.mSdServer.mSdData.batteryPc > 20) {
-                        tv.setBackgroundColor(warnColour);
-                        tv.setTextColor(warnTextColour);
-                    }
-                    if (mConnection.mSdServer.mSdData.batteryPc >= 40) {
+                    tv.setText("Heart Avg/Cur = " + String.valueOf(mConnection.mSdServer.mSdData.avgHeartRate) + "/" +
+                            String.valueOf(mConnection.mSdServer.mSdData.curHeartRate));
+                    if (mConnection.mSdServer.mSdData.avgHeartRate > 0){
+                        if(mConnection.mSdServer.mSdData.curHeartRate >
+                                mConnection.mSdServer.mSdData.avgHeartRate *1.3)
+                        {
+                            tv.setBackgroundColor(alarmColour);
+                            tv.setTextColor(alarmTextColour);
+                        } else if (mConnection.mSdServer.mSdData.curHeartRate >
+                                mConnection.mSdServer.mSdData.avgHeartRate *1.2) {
+                            tv.setBackgroundColor(warnColour);
+                            tv.setTextColor(warnTextColour);
+                        } else {
+                            tv.setBackgroundColor(okColour);
+                            tv.setTextColor(okTextColour);
+                        }
+                    } else {
                         tv.setBackgroundColor(okColour);
                         tv.setTextColor(okTextColour);
                     }
