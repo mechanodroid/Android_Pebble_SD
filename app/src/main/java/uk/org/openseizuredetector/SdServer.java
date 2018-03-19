@@ -401,6 +401,14 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
      */
     public void onSdDataReceived(SdData sdData) {
         Log.v(TAG, "onSdDataReceived() - " + sdData.toString());
+        // Handle Help from watch buttons
+        if (sdData.alarmState == 11) {
+            sdData.alarmPhrase = "HELP";
+            sdData.alarmStanding = false;
+            sdData.fallAlarmStanding = false;
+            showNotification(0);
+            sendSMSHelp();
+        }
         // Handle I'm OK from watch buttons.
         if (sdData.alarmState == 10) {
             sdData.alarmPhrase = "OK";
@@ -599,6 +607,28 @@ public class SdServer extends Service implements SdDataReceiver, SdLocationRecei
             } else {
                 Log.v(TAG, "warningBeep() - silent...");
             }
+        }
+    }
+
+    public void sendSMSHelp() {
+        // Send SMS Alarm once a minute
+        Time tnow = new Time(Time.getCurrentTimezone());
+        tnow.setToNow();
+        // limit SMS alarms to one per minute
+        if ((tnow.toMillis(false)
+                - mSMSOkTime.toMillis(false))
+                < 60000) {
+            return;
+        }
+        mSMSOkTime = tnow;
+        Log.v(TAG, "sendHelp() - Sending to " + mSMSNumbers.length + " Numbers");
+        mUtil.writeToSysLogFile("SdServer.sendHelp()");
+
+        String dateStr = tnow.format("%H:%M:%S %d/%m/%Y");
+        SmsManager sm = SmsManager.getDefault();
+        for (int i = 0; i < mSMSNumbers.length; i++) {
+            Log.v(TAG, "sendSMSHelp() - Sending to " + mSMSNumbers[i]);
+            sm.sendTextMessage(mSMSNumbers[i], null, " I need help. " + " - " + dateStr, null, null);
         }
     }
 
