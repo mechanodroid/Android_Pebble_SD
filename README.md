@@ -1,13 +1,8 @@
 OpenSeizureDetector - Pebble Version
 ====================================
 
-This seizure detector uses a (Pebble)[http://getpebble.com] smart watch.
-The watch has an accelerometer and vibrator motor and a bluetooth radio
-to talk to another computer.  Most importantly, it comes with instructions to
-write code for it on the manufacturers (web site)[http://developer.getpebble.com].   
-
-So it sounds like an ideal platform for an accelerometer based seizure detector
-similar to the Arduino based one I made in 2013.
+This seizure detector uses a (Pebble)[http://getpebble.com] smart watch or Android Wear watch.The watch has an accelerometer and vibrator motor and a bluetooth radio
+to talk to another computer.  
 
 Principle of Operation
 ======================
@@ -23,6 +18,7 @@ the threshold for a given period, it issues a warning beep.
 If it remains above the threshold for a longer specified period, the unit
 alarms (continuous tone rather than beep).
 
+Likewise, a heart rate detection routine has been added for watches which have these sensors.
 
 Licence
 =======
