@@ -1,4 +1,4 @@
-OpenSeizureDetector - Pebble Version
+OpenSeizureDetector - Android Wear and Pebble Version
 ====================================
 
 This seizure detector uses a (Pebble)[http://getpebble.com] smart watch or Android Wear watch.The watch has an accelerometer and vibrator motor and a bluetooth radio
